@@ -133,7 +133,7 @@
     "daysAway": "{count, plural, one {, bara # dag kvar!} other {, bara # dagar kvar!}}",
     "todaySuffix": " — det är idag!",
     "closedSuffix": " (anmälningstiden har nu gått ut).",
-    "troubleRsvping": "Krångel med OSA:n? Maila oss på <emailLink>{email}</emailLink>"
+    "troubleRsvping": "Krångel? Maila oss på <emailLink>{email}</emailLink>"
   },
   "RSVPForm": {
     "welcome": "Välkommen!",
