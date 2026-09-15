@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { demoStatus } from '@/lib/demo';
 
 /**
@@ -14,9 +15,10 @@ import { demoStatus } from '@/lib/demo';
  * space, and no class of bug where a real wedding site warns guests that
  * nothing they do is saved.
  */
-export default function DemoBanner() {
-    const { demo, notice } = demoStatus();
+export default async function DemoBanner() {
+    const { demo } = demoStatus();
     if (!demo) return null;
+    const t = await getTranslations('DemoBanner');
 
     /*
      * Exactly `--demo-banner-h` tall, and in the normal flow.
@@ -37,7 +39,7 @@ export default function DemoBanner() {
                 sm:text-xs px-3 leading-none"
         >
             <span aria-hidden>🎭</span>
-            <span className="truncate">{notice}</span>
+            <span className="truncate">{t('notice')}</span>
         </div>
     );
 }

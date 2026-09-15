@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 
-export default function WorkInProgressPage() {
+export default async function WorkInProgressPage() {
+  const t = await getTranslations('WorkInProgress');
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 to-white flex items-center justify-center px-4">
       <div className="max-w-2xl text-center">
@@ -21,11 +23,11 @@ export default function WorkInProgressPage() {
         </div>
 
         <h1 className="text-4xl font-serif font-bold text-gray-900 mb-4">
-          We&apos;re Working on Something Special
+          {t('title')}
         </h1>
 
         <p className="text-lg text-gray-600 mb-8">
-          This page is currently under construction. We&apos;re putting the finishing touches on it to make sure everything is perfect for your experience.
+          {t('body')}
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -33,13 +35,13 @@ export default function WorkInProgressPage() {
             href="/"
             className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-accent hover:bg-accent/90 transition-colors"
           >
-            Return to Home
+            {t('returnHome')}
           </Link>
         </div>
 
         <div className="mt-12 pt-8 border-t border-gray-200">
           <p className="text-sm text-gray-500">
-            Thank you for your patience as we prepare this content.
+            {t('thanksForPatience')}
           </p>
         </div>
       </div>

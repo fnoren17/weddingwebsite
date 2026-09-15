@@ -1,38 +1,42 @@
 import { getSiteConfig } from '@/lib/config';
 import RSVPForm from '@/components/RSVPForm';
+import { getTranslations, getFormatter } from 'next-intl/server';
 
 // Read live config at request time (admin edits to the RSVP deadline, room block,
 // etc. take effect without a rebuild) instead of baking it in at build time.
 export const dynamic = 'force-dynamic';
 
-// Format the deadline and compute whole days remaining (local time).
+// Parses the deadline and computes whole days remaining (local time).
 // Accepts an ISO date (YYYY-MM-DD, from the date picker) or legacy free text.
-function describeDeadline(raw?: string): { text: string; daysRemaining: number | null } {
-    if (!raw) return { text: '', daysRemaining: null };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { text: raw, daysRemaining: null };
+function parseDeadline(raw?: string): { date: Date | null; freeText: string; daysRemaining: number | null } {
+    if (!raw) return { date: null, freeText: '', daysRemaining: null };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { date: null, freeText: raw, daysRemaining: null };
     const [y, m, d] = raw.split('-').map(Number);
     const deadline = new Date(y, m - 1, d);
-    const text = deadline.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const daysRemaining = Math.round((deadline.getTime() - today.getTime()) / 86_400_000);
-    return { text, daysRemaining };
+    return { date: deadline, freeText: '', daysRemaining };
 }
 
-export default function RSVPPage() {
+export default async function RSVPPage() {
     const config = getSiteConfig();
+    const t = await getTranslations('RSVP');
+    const format = await getFormatter();
     const bgColor = config.pageBgColors?.rsvp || '#ffffff';
     // Set in General Settings; the previous default was this couple's real
     // address hard-coded into the template.
     const contactEmail = (config.contactEmail ?? 'heav.aust.wedding@gmail.com').trim();
 
-    const { text: deadlineText, daysRemaining } = describeDeadline(config.rsvpDeadline);
+    const { date: deadlineDate, freeText, daysRemaining } = parseDeadline(config.rsvpDeadline);
+    const deadlineText = deadlineDate
+        ? format.dateTime(deadlineDate, { year: 'numeric', month: 'long', day: 'numeric' })
+        : freeText;
     let countdown = '';
     if (daysRemaining !== null) {
-        if (daysRemaining > 1) countdown = `, just ${daysRemaining} days away!`;
-        else if (daysRemaining === 1) countdown = ', just 1 day away!';
-        else if (daysRemaining === 0) countdown = " — that's today!";
-        else countdown = ' (the RSVP window has now closed).';
+        if (daysRemaining >= 1) countdown = t('daysAway', { count: daysRemaining });
+        else if (daysRemaining === 0) countdown = t('todaySuffix');
+        else countdown = t('closedSuffix');
     }
 
     return (
@@ -41,13 +45,13 @@ export default function RSVPPage() {
                 <div className="max-w-3xl mx-auto">
                     <div className="text-center mb-12">
                         <h1 className="text-4xl font-serif text-gray-900 tracking-tight sm:text-5xl">
-                            RSVP
+                            {t('title')}
                         </h1>
                         <p className="mt-4 text-lg text-gray-600">
-                            We can&apos;t wait to celebrate with you!{' '}
+                            {t('introCantWait')}{' '}
                             {deadlineText
-                                ? <>Please let us know if you can make it by {deadlineText}{countdown}</>
-                                : 'Please let us know if you can make it.'}
+                                ? <>{t('pleaseLetUsKnowByDeadline', { deadline: deadlineText })}{countdown}</>
+                                : t('pleaseLetUsKnowSimple')}
                         </p>
                     </div>
 
@@ -60,7 +64,12 @@ export default function RSVPPage() {
                     {contactEmail && (
                         <div className="mt-12 text-center text-gray-500">
                             <p>
-                                Having trouble RSVPing? Email us at <a href={`mailto:${contactEmail}`} className="text-accent hover:text-accent-dark">{contactEmail}</a>
+                                {t.rich('troubleRsvping', {
+                                    email: contactEmail,
+                                    emailLink: (chunks) => (
+                                        <a href={`mailto:${contactEmail}`} className="text-accent hover:text-accent-dark">{chunks}</a>
+                                    ),
+                                })}
                             </p>
                         </div>
                     )}

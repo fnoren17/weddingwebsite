@@ -7,6 +7,8 @@ import { demoStatus } from '@/lib/demo';
 import { getSiteConfig } from '@/lib/config';
 import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, verifyAdminToken } from '@/lib/auth';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 // Force this layout to be dynamic so it re-reads config on every request
 export const dynamic = 'force-dynamic';
@@ -34,12 +36,13 @@ const geistMono = Geist_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
   const config = getSiteConfig();
+  const t = await getTranslations('Metadata');
   const couple = config.brideName && config.groomName
     ? `${config.brideName} & ${config.groomName}`
-    : 'Our Wedding';
+    : t('defaultCouple');
   return {
-    title: `${couple} | The Wedding`,
-    description: `Join us in celebrating our wedding on ${config.weddingDate}.`,
+    title: `${couple} | ${t('titleSuffix')}`,
+    description: t('description', { date: config.weddingDate }),
     // Linked explicitly because the manifest is a route handler now, not the
     // `app/manifest.ts` convention — that export gets no request and so could
     // only ever emit one variant. The admin layout overrides this.
@@ -88,6 +91,7 @@ export default async function RootLayout({
   const config = getSiteConfig();
   const isAdmin = await getIsAdmin();
   const { demo: isDemo } = demoStatus();
+  const locale = await getLocale();
 
   // suppressHydrationWarning below is for the inline script in <head>, which
   // adds `no-scrollbar-gutter` to <html> before paint on admin routes. The
@@ -95,7 +99,7 @@ export default async function RootLayout({
   // hydration — React logged a warning on every single admin page, which is
   // noise that hides real ones. The class is the only difference on this element.
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
         {/*
           Next emits the standardised `mobile-web-app-capable`, but iOS before
@@ -131,21 +135,23 @@ export default async function RootLayout({
             }
           `
         }} />
-        {/* Above everything, on every page: which instance this is. */}
-        <DemoBanner />
-        <AppShell
-          isDemo={isDemo}
-          brideName={config.brideName}
-          groomName={config.groomName}
-          logoMode={config.logoMode}
-          weddingLogo={config.weddingLogo}
-          isAdmin={isAdmin}
-          weddingDate={config.weddingDate}
-          weddingLocation={config.weddingLocation}
-          footerHeroImage={config.footerHeroImage}
-        >
-          {children}
-        </AppShell>
+        <NextIntlClientProvider>
+          {/* Above everything, on every page: which instance this is. */}
+          <DemoBanner />
+          <AppShell
+            isDemo={isDemo}
+            brideName={config.brideName}
+            groomName={config.groomName}
+            logoMode={config.logoMode}
+            weddingLogo={config.weddingLogo}
+            isAdmin={isAdmin}
+            weddingDate={config.weddingDate}
+            weddingLocation={config.weddingLocation}
+            footerHeroImage={config.footerHeroImage}
+          >
+            {children}
+          </AppShell>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

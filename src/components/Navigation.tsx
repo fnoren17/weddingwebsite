@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect, useRef, CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 
 // Height the fixed nav island occupies (12px top offset + 68px tall). Content
 // scrolled to sits below this, so scrollspy detection starts here too — the
@@ -44,6 +45,7 @@ export default function Navigation({
     const linksRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
     const [aboutInView, setAboutInView] = useState(false);
+    const t = useTranslations('Navigation');
 
     // All pages: full banner at top, island when scrolled.
     const island = scrolled;
@@ -116,14 +118,14 @@ export default function Navigation({
     }, [pathname]);
 
     const allLinks = [
-        { href: '/', label: 'Home' },
-        { href: '/#about', label: 'About' },
-        { href: '/our-story', label: 'Our Story' },
-        { href: '/wedding-party', label: 'Wedding Party' },
-        { href: '/schedule', label: 'Schedule' },
-        { href: '/photos', label: 'Photos' },
-        { href: '/registry', label: 'Registry' },
-        { href: '/rsvp', label: 'RSVP' },
+        { href: '/', label: t('home') },
+        { href: '/#about', label: t('about') },
+        { href: '/our-story', label: t('ourStory') },
+        { href: '/wedding-party', label: t('weddingParty') },
+        { href: '/schedule', label: t('schedule') },
+        { href: '/photos', label: t('photos') },
+        { href: '/registry', label: t('registry') },
+        { href: '/rsvp', label: t('rsvp') },
     ];
     const basicModePages = ['/', '/#about', '/our-story', '/photos'];
     const links = (basicMode && !isAdmin
@@ -293,7 +295,7 @@ export default function Navigation({
                             href="/admin"
                             className="ml-2 px-4 py-1.5 rounded-full bg-accent text-white text-xs font-bold uppercase tracking-widest hover:bg-accent-dark transition-colors shadow"
                         >
-                            Admin
+                            {t('admin')}
                         </Link>
                     )}
                 </div>
@@ -305,7 +307,7 @@ export default function Navigation({
                             href="/admin"
                             className="px-3 py-1 rounded-full bg-accent text-white text-xs font-bold uppercase tracking-widest hover:bg-accent-dark transition-colors shadow"
                         >
-                            Admin
+                            {t('admin')}
                         </Link>
                     )}
                     <button
@@ -316,7 +318,7 @@ export default function Navigation({
                         aria-controls="mobile-menu"
                         aria-expanded={isOpen}
                     >
-                        <span className="sr-only">Open main menu</span>
+                        <span className="sr-only">{t('openMenu')}</span>
                         <div className="relative w-6 h-5 flex flex-col justify-between">
                             <span className={`block h-0.5 bg-current rounded-full transition-all duration-300 origin-center ${isOpen ? 'rotate-45 translate-y-2.5' : ''}`} />
                             <span className={`block h-0.5 bg-current rounded-full transition-all duration-200 ${isOpen ? 'opacity-0 scale-x-0' : ''}`} />

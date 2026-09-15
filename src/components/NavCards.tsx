@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useTranslations } from 'next-intl';
 
 interface NavCard {
   href: string;
@@ -15,6 +16,7 @@ interface NavCard {
 }
 
 export default function NavCards() {
+  const t = useTranslations('NavCards');
   const [cards, setCards] = useState<NavCard[]>([]);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export default function NavCards() {
     <section className="py-16 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-3xl font-serif text-center text-gray-900 mb-10 tracking-tight">
-          Explore
+          {t('explore')}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {cards.map(card => (

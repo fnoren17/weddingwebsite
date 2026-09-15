@@ -19,6 +19,7 @@ export default function AdminSettings() {
         roomBlockMessage: '',
         countdownMode: 'full',
         logoMode: false,
+        locale: 'en',
     });
     const [loaded, setLoaded] = useState(false);
 
@@ -104,6 +105,21 @@ export default function AdminSettings() {
                         className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-accent focus:ring-accent sm:text-sm p-2 border"
                         placeholder="e.g. 4:00 PM"
                     />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Site Language</label>
+                    <select
+                        value={config.locale || 'en'}
+                        onChange={(e) => setConfig({ ...config, locale: e.target.value })}
+                        className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-accent focus:ring-accent sm:text-sm p-2 border text-gray-900"
+                    >
+                        <option value="en">English</option>
+                        <option value="sv">Swedish</option>
+                    </select>
+                    <p className="mt-1 text-sm text-gray-500">
+                        Every visitor sees the public site&apos;s UI text in this language. Content you&apos;ve written yourself (names, bios, FAQs, etc.) stays exactly as you typed it.
+                    </p>
                 </div>
 
                 <div>

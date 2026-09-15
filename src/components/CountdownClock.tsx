@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { weddingDateTime } from '@/lib/weddingDate';
 
 interface CountdownClockProps {
@@ -17,6 +18,7 @@ interface TimeLeft {
 }
 
 export default function CountdownClock({ weddingDate, weddingTime, countdownMode = 'full' }: CountdownClockProps) {
+    const t = useTranslations('CountdownClock');
     const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
     const [mounted, setMounted] = useState(false);
     const [passed, setPassed] = useState(false);
@@ -67,7 +69,7 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
                             <span className="text-6xl sm:text-7xl font-serif text-accent font-bold">0</span>
                         </div>
                         <span className="text-base sm:text-xl text-gray-700 mt-3 uppercase tracking-widest font-semibold">
-                            Days
+                            {t('days')}
                         </span>
                     </div>
                 </div>
@@ -75,7 +77,7 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
         }
 
         // Simple or full mode
-        const labels = isSimpleMode ? ['Days', 'Hours'] : ['Days', 'Hours', 'Minutes', 'Seconds'];
+        const labels = isSimpleMode ? [t('days'), t('hours')] : [t('days'), t('hours'), t('minutes'), t('seconds')];
         return (
             <div className="flex justify-center gap-4 sm:gap-8">
                 {labels.map((label, i) => (
@@ -97,8 +99,8 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
         return (
             <div className="flex justify-center">
                 <div className="px-10 py-6 bg-white rounded-3xl shadow-2xl border-4 border-accent/30 text-center">
-                    <div className="text-4xl sm:text-5xl font-serif text-accent">We&apos;re married!</div>
-                    <div className="text-sm text-gray-500 mt-2 uppercase tracking-widest">Thank you for celebrating with us</div>
+                    <div className="text-4xl sm:text-5xl font-serif text-accent">{t('married')}</div>
+                    <div className="text-sm text-gray-500 mt-2 uppercase tracking-widest">{t('marriedThankYou')}</div>
                 </div>
             </div>
         );
@@ -113,7 +115,7 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
                         <span className="text-6xl sm:text-7xl font-serif text-accent font-bold">{timeLeft.days}</span>
                     </div>
                     <span className="text-base sm:text-xl text-gray-700 mt-3 uppercase tracking-widest font-semibold">
-                        Days to go
+                        {t('daysToGo')}
                     </span>
                 </div>
             </div>
@@ -127,7 +129,7 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
                     <span className="text-3xl sm:text-4xl font-serif text-accent">{timeLeft.days}</span>
                 </div>
                 <span className="text-xs sm:text-sm text-gray-600 mt-2 uppercase tracking-wider font-medium">
-                    Days
+                    {t('days')}
                 </span>
             </div>
 
@@ -136,7 +138,7 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
                     <span className="text-3xl sm:text-4xl font-serif text-accent">{timeLeft.hours}</span>
                 </div>
                 <span className="text-xs sm:text-sm text-gray-600 mt-2 uppercase tracking-wider font-medium">
-                    Hours
+                    {t('hours')}
                 </span>
             </div>
 
@@ -147,7 +149,7 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
                             <span className="text-3xl sm:text-4xl font-serif text-accent">{timeLeft.minutes}</span>
                         </div>
                         <span className="text-xs sm:text-sm text-gray-600 mt-2 uppercase tracking-wider font-medium">
-                            Minutes
+                            {t('minutes')}
                         </span>
                     </div>
 
@@ -156,7 +158,7 @@ export default function CountdownClock({ weddingDate, weddingTime, countdownMode
                             <span className="text-3xl sm:text-4xl font-serif text-accent">{timeLeft.seconds}</span>
                         </div>
                         <span className="text-xs sm:text-sm text-gray-600 mt-2 uppercase tracking-wider font-medium">
-                            Seconds
+                            {t('seconds')}
                         </span>
                     </div>
                 </>

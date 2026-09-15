@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslations } from 'next-intl';
 import type { FundItem } from '@/lib/config';
 import type { RegistryItem } from '@/app/api/admin/registry-items/route';
 
@@ -27,6 +28,7 @@ interface SiteData {
 }
 
 function ContributeModal({ item, fund, onClose }: { item: FundItem; fund: FundConfig; onClose: () => void }) {
+    const t = useTranslations('Registry');
     const [zelleCopied, setZelleCopied] = useState(false);
     const [mounted, setMounted] = useState(false);
     // Render via a portal to <body> so the fixed overlay isn't trapped by a
@@ -108,13 +110,13 @@ function ContributeModal({ item, fund, onClose }: { item: FundItem; fund: FundCo
                     {showFinancials && (
                         <>
                             <p className="text-accent font-semibold text-lg mt-1">${suggestedAmount.toLocaleString()}</p>
-                            <p className="text-gray-500 text-sm mt-1">suggested contribution</p>
+                            <p className="text-gray-500 text-sm mt-1">{t('suggestedContribution')}</p>
                         </>
                     )}
                 </div>
 
                 <div className="bg-green-50 rounded-xl px-4 py-3 mb-5 text-center">
-                    <p className="text-green-800 text-sm font-medium">100% goes directly to us — zero fees</p>
+                    <p className="text-green-800 text-sm font-medium">{t('zeroFeesNote')}</p>
                 </div>
 
                 <div className="space-y-3">
@@ -139,7 +141,7 @@ function ContributeModal({ item, fund, onClose }: { item: FundItem; fund: FundCo
                                         </div>
                                     </div>
                                     <span className="text-gray-400 text-sm shrink-0">
-                                        {zelleCopied ? '✓ Copied!' : 'Tap to copy'}
+                                        {zelleCopied ? t('copied') : t('tapToCopy')}
                                     </span>
                                 </button>
                             );
@@ -179,7 +181,7 @@ function ContributeModal({ item, fund, onClose }: { item: FundItem; fund: FundCo
                                         <p className="text-gray-500 text-xs font-mono">{m.handle}</p>
                                     </div>
                                 </div>
-                                <span className="text-gray-400 text-sm">Open →</span>
+                                <span className="text-gray-400 text-sm">{t('open')}</span>
                             </a>
                         );
                     })}
@@ -187,8 +189,8 @@ function ContributeModal({ item, fund, onClose }: { item: FundItem; fund: FundCo
 
                 <p className="text-center text-xs text-gray-400 mt-4">
                     {showFinancials
-                        ? <>Send <strong>${suggestedAmount}</strong> and mention &ldquo;{item.title}&rdquo; in the note</>
-                        : <>Mention &ldquo;{item.title}&rdquo; in the payment note so we know what it&rsquo;s for!</>
+                        ? t.rich('sendAmountAndMention', { amount: `$${suggestedAmount}`, item: item.title, strong: (chunks) => <strong>{chunks}</strong> })
+                        : t('mentionInNote', { item: item.title })
                     }
                 </p>
             </div>
@@ -198,12 +200,13 @@ function ContributeModal({ item, fund, onClose }: { item: FundItem; fund: FundCo
 }
 
 function ProgressBar({ funded, price }: { funded: number; price: number }) {
+    const t = useTranslations('Registry');
     const pct = price > 0 ? Math.min(100, Math.round((funded / price) * 100)) : 0;
     return (
         <div className="mt-3">
             <div className="flex justify-between text-xs text-gray-500 mb-1">
-                <span>${funded.toLocaleString()} funded</span>
-                <span>{pct}% of ${price.toLocaleString()}</span>
+                <span>{t('amountFunded', { amount: `$${funded.toLocaleString()}` })}</span>
+                <span>{t('percentOfGoal', { percent: pct, amount: `$${price.toLocaleString()}` })}</span>
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                 <div
@@ -216,6 +219,7 @@ function ProgressBar({ funded, price }: { funded: number; price: number }) {
 }
 
 export default function RegistryPage() {
+    const t = useTranslations('Registry');
     const [data, setData] = useState<SiteData | null>(null);
     const [selectedItem, setSelectedItem] = useState<FundItem | null>(null);
     const [activeTab, setActiveTab] = useState<'honeymoon' | 'registry'>('honeymoon');
@@ -238,7 +242,7 @@ export default function RegistryPage() {
     if (!fund?.enabled) {
         return (
             <div style={{ backgroundColor: bgColor }} className="min-h-screen py-16 flex items-center justify-center">
-                <p className="text-gray-400 text-lg">This page is not available right now.</p>
+                <p className="text-gray-400 text-lg">{t('notAvailable')}</p>
             </div>
         );
     }
@@ -262,7 +266,7 @@ export default function RegistryPage() {
                         {data.brideName} & {data.groomName}
                     </p>
                     <h1 className="text-4xl font-serif text-gray-900 tracking-tight sm:text-5xl mb-4">
-                        {fund.title || 'Registry'}
+                        {fund.title || t('defaultTitle')}
                     </h1>
                     {fund.subtitle && (
                         <p className="text-xl text-gray-500 italic">{fund.subtitle}</p>
@@ -274,7 +278,7 @@ export default function RegistryPage() {
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8 text-center">
                         <p className="text-gray-700 text-lg leading-relaxed whitespace-pre-line">{fund.description}</p>
                         <p className="text-gray-500 text-sm mt-4 italic">
-                            If you prefer the old-fashioned way, we will also have a card box at the wedding. 💌
+                            {t('cardBoxNote')}
                         </p>
                     </div>
                 )}
@@ -282,20 +286,20 @@ export default function RegistryPage() {
                 {/* Tabs */}
                 <div className="flex gap-1 mb-8 bg-white border border-gray-200 rounded-2xl p-1 shadow-sm">
                     {[
-                        { key: 'honeymoon' as const, label: '🌴 Honeymoon Fund', desc: 'Help fund our experiences' },
-                        { key: 'registry' as const, label: '🛍️ Registry', desc: 'Target & Amazon wish list' },
-                    ].map(t => (
+                        { key: 'honeymoon' as const, label: t('tabHoneymoonLabel'), desc: t('tabHoneymoonDesc') },
+                        { key: 'registry' as const, label: t('tabRegistryLabel'), desc: t('tabRegistryDesc') },
+                    ].map(tab => (
                         <button
-                            key={t.key}
-                            onClick={() => setActiveTab(t.key)}
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
                             className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-                                activeTab === t.key
+                                activeTab === tab.key
                                     ? 'bg-accent text-white shadow'
                                     : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                             }`}
                         >
-                            <div>{t.label}</div>
-                            <div className={`text-xs mt-0.5 ${activeTab === t.key ? 'text-white/80' : 'text-gray-400'}`}>{t.desc}</div>
+                            <div>{tab.label}</div>
+                            <div className={`text-xs mt-0.5 ${activeTab === tab.key ? 'text-white/80' : 'text-gray-400'}`}>{tab.desc}</div>
                         </button>
                     ))}
                 </div>
@@ -307,7 +311,7 @@ export default function RegistryPage() {
                         {showFinancials && items.length > 0 && totalGoal > 0 && (
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8">
                                 <div className="flex justify-between items-end mb-2">
-                                    <span className="font-semibold text-gray-900">Overall Progress</span>
+                                    <span className="font-semibold text-gray-900">{t('overallProgress')}</span>
                                     <span className="text-accent font-bold text-lg">${totalFunded.toLocaleString()} / ${totalGoal.toLocaleString()}</span>
                                 </div>
                                 <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -317,7 +321,7 @@ export default function RegistryPage() {
                                     />
                                 </div>
                                 <p className="text-sm text-gray-500 mt-2 text-right">
-                                    {Math.round((totalFunded / totalGoal) * 100)}% funded
+                                    {t('percentFunded', { percent: Math.round((totalFunded / totalGoal) * 100) })}
                                 </p>
                             </div>
                         )}
@@ -325,7 +329,7 @@ export default function RegistryPage() {
                         {/* Zero fees banner */}
                         <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-3 mb-8 flex items-center gap-3">
                             <span className="text-green-600 font-bold text-lg">✓</span>
-                            <p className="text-green-800 text-sm font-medium">100% Goes To Us — Zero Fees. Every dollar goes directly to us with no platform cuts.</p>
+                            <p className="text-green-800 text-sm font-medium">{t('zeroFeesBanner')}</p>
                         </div>
 
                         {/* Experience items */}
@@ -343,7 +347,7 @@ export default function RegistryPage() {
                                             <div className="flex items-start justify-between gap-2 mb-1">
                                                 <h3 className="font-bold text-gray-900 text-lg leading-tight">{item.title}</h3>
                                                 {fullyFunded && (
-                                                    <span className="shrink-0 text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">Funded!</span>
+                                                    <span className="shrink-0 text-xs bg-green-100 text-green-700 font-semibold px-2 py-0.5 rounded-full">{t('funded')}</span>
                                                 )}
                                             </div>
                                             <p className="text-gray-500 text-sm leading-relaxed mb-3 flex-1">{item.description}</p>
@@ -362,7 +366,7 @@ export default function RegistryPage() {
                                                         : 'bg-accent hover:bg-accent-dark text-white'
                                                 }`}
                                             >
-                                                {fullyFunded ? 'Fully Funded' : 'Contribute'}
+                                                {fullyFunded ? t('fullyFunded') : t('contribute')}
                                             </button>
                                         </div>
                                     );
@@ -371,7 +375,7 @@ export default function RegistryPage() {
                         ) : (
                             <div className="text-center py-16 text-gray-400">
                                 <p className="text-5xl mb-4">✈️</p>
-                                <p className="text-lg">Experiences coming soon!</p>
+                                <p className="text-lg">{t('experiencesComingSoon')}</p>
                             </div>
                         )}
                     </>
@@ -383,19 +387,19 @@ export default function RegistryPage() {
                         {registryItems.length === 0 ? (
                             <div className="text-center py-16 text-gray-400">
                                 <p className="text-5xl mb-4">🛍️</p>
-                                <p className="text-lg">Registry coming soon!</p>
+                                <p className="text-lg">{t('registryComingSoon')}</p>
                             </div>
                         ) : (
                             <>
                                 {[
-                                    { store: 'target', label: '🎯 Target', items: targetItems },
-                                    { store: 'amazon', label: '📦 Amazon', items: amazonItems },
-                                    { store: 'other', label: '🛍️ Other', items: otherItems },
+                                    { store: 'target', label: t('storeTarget'), items: targetItems },
+                                    { store: 'amazon', label: t('storeAmazon'), items: amazonItems },
+                                    { store: 'other', label: t('storeOther'), items: otherItems },
                                 ].filter(g => g.items.length > 0).map(group => (
                                     <div key={group.store} className="mb-10">
                                         <h2 className="text-xl font-serif text-gray-800 mb-4 flex items-center gap-2">
                                             {group.label}
-                                            <span className="text-sm font-sans text-gray-400 font-normal">({group.items.length} {group.items.length === 1 ? 'item' : 'items'})</span>
+                                            <span className="text-sm font-sans text-gray-400 font-normal">({t('itemCount', { count: group.items.length })})</span>
                                         </h2>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                             {group.items.map(item => (
@@ -427,9 +431,9 @@ export default function RegistryPage() {
                                                         )}
                                                         <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                                                             <span className="text-xs text-gray-400">
-                                                                {item.store === 'target' ? '🎯 Target' : item.store === 'amazon' ? '📦 Amazon' : '🛍️ Other'}
+                                                                {item.store === 'target' ? t('storeTarget') : item.store === 'amazon' ? t('storeAmazon') : t('storeOther')}
                                                             </span>
-                                                            <span className="text-xs font-medium text-accent group-hover:underline">View item →</span>
+                                                            <span className="text-xs font-medium text-accent group-hover:underline">{t('viewItem')}</span>
                                                         </div>
                                                     </div>
                                                 </a>
@@ -444,8 +448,8 @@ export default function RegistryPage() {
 
                 {/* Thank you */}
                 <div className="text-center mt-12">
-                    <p className="font-serif text-2xl italic text-gray-700 mb-2">Thank you from the bottom of our hearts.</p>
-                    <p className="text-sm text-gray-400">Your love and generosity mean everything to us as we begin this new chapter.</p>
+                    <p className="font-serif text-2xl italic text-gray-700 mb-2">{t('thankYouTitle')}</p>
+                    <p className="text-sm text-gray-400">{t('thankYouBody')}</p>
                 </div>
             </div>
 

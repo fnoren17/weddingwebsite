@@ -11,6 +11,28 @@ All notable changes to this project are documented here, newest at the top.
 > renders those three as coloured badges. Bump the patch on every deploy, the minor when
 > asked. Entries predating this convention carry a date but no time.
 
+## v0.9.88 — [Unreleased] production compose speaks Traefik (`main`, 2026-09-15 17:19)
+
+The prod stack published `3000:3000` straight onto the host — fine for a lone container, wrong once it shares a machine with Immich behind a Traefik reverse proxy.
+
+### Changed
+- `docker/docker-compose.prod.yml`: `web` no longer publishes a host port. It joins an external `proxy-net` (shared with Traefik and Immich) and carries routing labels — `Host(\`wedding.felixnoren.com\`)`, entrypoint `web`, the `trust-forward-header@file` middleware — matching the pattern the Immich stack already uses on the same host. TLS is terminated by Cloudflare in front of Traefik, so no TLS labels are needed here.
+- `db` moved onto its own internal `wedding-internal` bridge network, alongside `web`, so Postgres is reachable from the app but never from `proxy-net`.
+
+## v0.9.87 — [Unreleased] the couple picks the language, not the guest (`main`, 2026-09-15 00:00)
+
+Every UI label, button and form message on the public site was hardcoded English. Now it's pulled through next-intl, so the site renders in Swedish or English without the URL changing at all — and it's the admin's call, not a per-visitor toggle.
+
+### Added
+- **A "Site Language" setting** in Admin → Settings (General Settings), a dropdown between English and Swedish. Every visitor sees the public site's UI chrome in whichever language the admin picked; content the couple wrote themselves (names, bios, FAQs, schedule text, etc.) is untouched either way.
+- `messages/en.json` and `messages/sv.json` carry every UI-chrome string across the 9 public pages and their shared components (nav, footer, countdown clock, photo lightbox, RSVP form, registry).
+
+### Changed
+- No routing changes: every public URL is exactly what it was (`/schedule`, `/rsvp`, …) — locale is a site-wide config value, not a path segment, so the WIP-gating guard in `src/middleware.ts` needed no changes at all.
+- The RSVP form's "Party of X" receipt line now shows the numeral instead of a spelled-out English word list, since spelled numbers don't translate.
+
+Superseded before release: an earlier draft of this entry shipped a nav language switcher (EN/SV pills, a `NEXT_LOCALE` cookie, `Accept-Language` auto-detect). Austin decided the couple should choose the language, not each guest, so the switcher, its cookie and `src/lib/localeActions.ts` were removed in favour of the admin setting above before this ever reached `main`'s deployed history.
+
 ## v0.9.86 — [Released] The admin panel saves itself (`main`, 2026-09-14 04:43)
 
 Every editor had the same Save button, and behind it the same three bugs waiting to be written eleven times. So it is one hook, applied everywhere.

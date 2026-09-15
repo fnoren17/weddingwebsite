@@ -4,6 +4,7 @@ import { ADMIN_COOKIE, verifyAdminToken } from '@/lib/auth';
 import { DEFAULT_SITE_CONFIG, getSiteConfig, updateSiteConfig, type SiteConfig } from '@/lib/config';
 import { isDemoMode } from '@/lib/demo';
 import { publicScheduleEvents } from '@/lib/schedule';
+import { DEFAULT_LOCALE, isSupportedLocale } from '@/lib/locale';
 
 const HEX = /^#[0-9a-fA-F]{3,8}$/;
 const COLOR_KEYS = ['accentColor', 'accentLightColor', 'accentDarkColor'] as const;
@@ -27,7 +28,7 @@ async function isAdminRequest(): Promise<boolean> {
 }
 
 export async function GET() {
-    const config = { ...DEFAULT_SITE_CONFIG, countdownMode: 'full', ...getSiteConfig() } as SiteConfig;
+    const config = { ...DEFAULT_SITE_CONFIG, countdownMode: 'full', locale: DEFAULT_LOCALE, ...getSiteConfig() } as SiteConfig;
     if (await isAdminRequest()) return NextResponse.json(config);
     return NextResponse.json({ ...config, scheduleEvents: publicScheduleEvents(config.scheduleEvents) });
 }
@@ -54,6 +55,10 @@ export async function POST(request: Request) {
             if (value !== undefined && value !== '' && (typeof value !== 'string' || !HEX.test(value))) {
                 return NextResponse.json({ error: `${key} must be a hex colour like #D4AF37` }, { status: 400 });
             }
+        }
+
+        if (updates.locale !== undefined && !isSupportedLocale(updates.locale as string)) {
+            return NextResponse.json({ error: 'locale must be one of the supported site languages' }, { status: 400 });
         }
 
         const newConfig = await updateSiteConfig((current) => {

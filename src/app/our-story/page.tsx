@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations, useFormatter } from 'next-intl';
 import FadeIn from '@/components/FadeIn';
 import { photoSrc, photoSrcSet } from '@/lib/photoSrc';
 
@@ -15,9 +16,11 @@ interface Milestone {
 }
 
 export default function OurStoryPage() {
+    const t = useTranslations('OurStory');
+    const format = useFormatter();
     const [milestones, setMilestones] = useState<Milestone[]>([]);
     const [bgColor, setBgColor] = useState('#ffffff');
-    const [timelineSubtitle, setTimelineSubtitle] = useState('The journey of our love');
+    const [timelineSubtitle, setTimelineSubtitle] = useState<string | null>(null);
 
     useEffect(() => {
         // Fetch timeline data
@@ -48,17 +51,10 @@ export default function OurStoryPage() {
         const date = new Date(year, month - 1, day || 1);
 
         if (dateFormat === 'month-year') {
-            return date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long'
-            });
+            return format.dateTime(date, { year: 'numeric', month: 'long' });
         }
 
-        return date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        return format.dateTime(date, { year: 'numeric', month: 'long', day: 'numeric' });
     };
 
     const getObjectPositionClass = (align?: 'top' | 'top-center' | 'center' | 'center-bottom' | 'bottom') => {
@@ -82,10 +78,10 @@ export default function OurStoryPage() {
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
                 <FadeIn animation="slide-up" className="text-center mb-12">
                     <h1 className="text-4xl font-serif text-gray-900 tracking-tight sm:text-5xl mb-4">
-                        Our Story
+                        {t('title')}
                     </h1>
                     <p className="text-xl text-gray-500">
-                        {timelineSubtitle}
+                        {timelineSubtitle || t('defaultSubtitle')}
                     </p>
                 </FadeIn>
 
@@ -170,7 +166,7 @@ export default function OurStoryPage() {
 
                 {milestones.length === 0 && (
                     <div className="text-center py-12">
-                        <p className="text-gray-500">No milestones have been added yet.</p>
+                        <p className="text-gray-500">{t('noMilestones')}</p>
                     </div>
                 )}
             </div>

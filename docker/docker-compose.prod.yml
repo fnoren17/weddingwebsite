@@ -1,6 +1,12 @@
-# Production stack: the GHCR image plus Postgres.
+# Production stack for this fork: built from source, plus Postgres.
 #
-#   docker compose -f docker/docker-compose.prod.yml up -d
+# This fork carries changes (i18n, this Traefik setup) that live only in
+# fnoren17/weddingwebsite, not in the upstream ghcr.io/soccerbeats/weddingwebsite
+# image — so unlike the upstream project's Portainer deploy, this stack builds
+# the image locally on the server instead of pulling a published one.
+#
+#   git pull                     # on the server, inside the fork's checkout
+#   docker compose -f docker/docker-compose.prod.yml up -d --build
 #
 # (In the Portainer stack the environment comes from the UI, not a .env file.)
 
@@ -8,11 +14,20 @@ name: weddingwebsite
 
 services:
   web:
-    image: ghcr.io/soccerbeats/weddingwebsite:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: production
+    image: wedding-web:local
     container_name: wedding-web-prod
     restart: always
-    ports:
-      - '3000:3000'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy-net"
+      - "traefik.http.routers.wedding.rule=Host(`wedding.felixnoren.com`)"
+      - "traefik.http.routers.wedding.entrypoints=web"
+      - "traefik.http.routers.wedding.middlewares=trust-forward-header@file"
+      - "traefik.http.services.wedding.loadbalancer.server.port=3000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
@@ -40,6 +55,9 @@ services:
       - config_data:/app/public/config
     depends_on:
       - db
+    networks:
+      - proxy-net
+      - wedding-internal
 
   db:
     image: postgres:15-alpine
@@ -51,8 +69,16 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wedding-internal
 
 volumes:
   postgres_data:
   photos_data:
   config_data:
+
+networks:
+  proxy-net:
+    external: true
+  wedding-internal:
+    driver: bridge

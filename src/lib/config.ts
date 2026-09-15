@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import type { SiteLocale } from './locale';
 
 // Defined in `schedule.ts` — this module reads the filesystem, and the schedule
 // editor is a client component that needs the type without `fs` behind it.
@@ -53,6 +54,8 @@ export interface SiteConfig {
     weddingVenue?: string;
     weddingTime: string;
     rsvpDeadline?: string;
+    /** Which language the public site's UI chrome renders in. Admin-set, not per-visitor. */
+    locale?: SiteLocale;
     /** Shown on the RSVP page for guests having trouble. */
     contactEmail?: string;
     // Accommodations / room block (shown on RSVP confirmation)

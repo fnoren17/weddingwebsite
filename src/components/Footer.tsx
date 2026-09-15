@@ -8,6 +8,7 @@ interface FooterProps {
 }
 
 import { parseDateParts } from '@/lib/weddingDate';
+import { useTranslations } from 'next-intl';
 
 export default function Footer({
     brideName = '',
@@ -15,6 +16,7 @@ export default function Footer({
     weddingDate = '',
     footerHeroImage
 }: FooterProps) {
+    const t = useTranslations('Footer');
     // The copyright year is the wedding's year, not a number typed into the
     // template in 2026.
     const year = parseDateParts(weddingDate)?.year ?? new Date().getFullYear();
@@ -35,7 +37,7 @@ export default function Footer({
                 </div>
                 <div className="mt-0 md:mt-0 md:order-1 w-full">
                     <p className="text-center text-base text-gray-900 font-serif">
-                        &copy; {year}{couple ? ` ${couple}.` : ''} We can&apos;t wait to celebrate with you!
+                        &copy; {year}{couple ? ` ${couple}.` : ''} {t('tagline')}
                     </p>
                 </div>
             </div>
