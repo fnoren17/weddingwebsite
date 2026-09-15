@@ -23,6 +23,13 @@ function escapeHtml(value: string): string {
         .replace(/'/g, '&#39;');
 }
 
+/** The toast at the city hall ceremony — meaningless unless attending it. */
+type CeremonyToast = 'alcohol' | 'non_alcohol' | null;
+
+function parseToast(value: unknown): CeremonyToast {
+    return value === 'alcohol' || value === 'non_alcohol' ? value : null;
+}
+
 interface RsvpInput {
     guestName: string;
     email: string;
@@ -31,7 +38,16 @@ interface RsvpInput {
     guestCount: number;
     dietaryJson: string | null;
     message: string | null;
-    resolvedMembers: { name: string | null; attending: boolean | null }[] | null;
+    resolvedMembers: {
+        name: string | null;
+        attending: boolean | null;
+        attendingCeremony: boolean | null;
+        ceremonyToast: CeremonyToast;
+    }[] | null;
+    // The primary guest's own ceremony answer — party members carry theirs in
+    // `resolvedMembers` instead, alongside their party attendance.
+    attendingCeremony: boolean | null;
+    ceremonyToast: CeremonyToast;
 }
 
 /**
@@ -62,17 +78,26 @@ function parseInput(body: unknown): RsvpInput | string {
 
     const resolvedMembers = Array.isArray(b.resolvedMembers) && b.resolvedMembers.length
         ? b.resolvedMembers.slice(0, 50).map((m) => {
-            const obj = m && typeof m === 'object' ? (m as { name?: unknown; attending?: unknown }) : {};
+            const obj = m && typeof m === 'object'
+                ? (m as { name?: unknown; attending?: unknown; attendingCeremony?: unknown; ceremonyToast?: unknown })
+                : {};
             return {
                 name: typeof obj.name === 'string' ? obj.name.slice(0, 255) : null,
                 // Per-person answer. Absent (an older client) stays null rather than
                 // becoming a guess — the seating chart treats null as "not answered".
                 attending: typeof obj.attending === 'boolean' ? obj.attending : null,
+                // The city hall ceremony is a separate question from the party above.
+                attendingCeremony: typeof obj.attendingCeremony === 'boolean' ? obj.attendingCeremony : null,
+                ceremonyToast: parseToast(obj.ceremonyToast),
             };
         })
         : null;
 
-    return { guestName, email, phone, attending: b.attending, guestCount, dietaryJson, message, resolvedMembers };
+    return {
+        guestName, email, phone, attending: b.attending, guestCount, dietaryJson, message, resolvedMembers,
+        attendingCeremony: typeof b.attendingCeremony === 'boolean' ? b.attendingCeremony : null,
+        ceremonyToast: parseToast(b.ceremonyToast),
+    };
 }
 
 /**
@@ -122,19 +147,26 @@ async function saveRsvp(input: RsvpInput): Promise<{ id: number; isUpdate: boole
             await client.query(
                 `UPDATE rsvps
                     SET email = $1, phone = $2, attending = $3, number_of_guests = $4,
-                        dietary_restrictions = $5, message = $6, updated_at = NOW()
-                  WHERE id = $7`,
-                [input.email, input.phone, input.attending, count, input.dietaryJson, input.message, id],
+                        dietary_restrictions = $5, message = $6, attending_ceremony = $7,
+                        ceremony_toast = $8, updated_at = NOW()
+                  WHERE id = $9`,
+                [input.email, input.phone, input.attending, count, input.dietaryJson, input.message,
+                 input.attendingCeremony, input.ceremonyToast, id],
             );
         } else {
             const inserted = await client.query(
-                `INSERT INTO rsvps (guest_name, email, phone, attending, number_of_guests, dietary_restrictions, message)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-                [guest.guest_name, input.email, input.phone, input.attending, count, input.dietaryJson, input.message],
+                `INSERT INTO rsvps (guest_name, email, phone, attending, number_of_guests, dietary_restrictions,
+                                     message, attending_ceremony, ceremony_toast)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+                [guest.guest_name, input.email, input.phone, input.attending, count, input.dietaryJson,
+                 input.message, input.attendingCeremony, input.ceremonyToast],
             );
             id = inserted.rows[0].id;
         }
 
+        // `resolvedMembers` already carries each party member's ceremony answer
+        // alongside their party answer (both come off the same per-person card in
+        // the form), so it writes into `party_members` as one shape, same as before.
         await client.query(
             `UPDATE guest_list
                 SET email = $1, phone = $2, rsvp_status = $3,

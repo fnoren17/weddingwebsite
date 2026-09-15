@@ -11,7 +11,15 @@ All notable changes to this project are documented here, newest at the top.
 > renders those three as coloured badges. Bump the patch on every deploy, the minor when
 > asked. Entries predating this convention carry a date but no time.
 
-## v0.9.88 — [Unreleased] production compose speaks Traefik (`main`, 2026-09-15 17:19)
+## v0.9.89 — [Unreleased] the City Hall answer shows up in admin (`main`, 2026-09-15 20:56)
+
+RSVPs have carried a separate City Hall ceremony answer and toast choice (added earlier) since before this admin panel knew about either — `rsvps.attending_ceremony`/`ceremony_toast` and each `party_members` entry's `attendingCeremony`/`ceremonyToast` were written on every submission but nowhere displayed.
+
+### Added
+- A **City Hall** column on the RSVP table (`/admin/rsvps`), between Status and Guests: "Yes · alcohol" / "Yes · no alcohol" / "No" / "—" for the primary guest, and the same per party member — cross-referenced from `guest_list.party_members` by name, since that answer lives there rather than on the dietary array the sub-rows otherwise read from.
+
+### Changed
+- The `RSVP` and `PartyMember` admin types now carry the ceremony fields the API already returned, so future admin work on this table doesn't have to rediscover they exist.
 
 The prod stack published `3000:3000` straight onto the host — fine for a lone container, wrong once it shares a machine with Immich behind a Traefik reverse proxy.
 

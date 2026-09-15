@@ -72,6 +72,8 @@ export async function POST(request: Request) {
           phone: rsvp.phone,
           dietaryRestrictions: rsvp.dietary_restrictions,
           message: rsvp.message,
+          attendingCeremony: rsvp.attending_ceremony,
+          ceremonyToast: rsvp.ceremony_toast,
         };
       }
 

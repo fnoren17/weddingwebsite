@@ -34,6 +34,11 @@ interface RSVP {
     dietary_restrictions: DietaryEntry[] | string | null;
     message: string;
     created_at: string;
+    // The City Hall ceremony is a separate yes/no from the party above — a
+    // guest can attend one without the other. The toast choice only means
+    // anything when attending_ceremony is true.
+    attending_ceremony?: boolean | null;
+    ceremony_toast?: 'alcohol' | 'non_alcohol' | null;
 }
 
 interface PartyMember {
@@ -41,6 +46,8 @@ interface PartyMember {
     // The person's own RSVP answer. null = not answered. The seating chart reads
     // this, so an edit here must never drop it.
     attending?: boolean | null;
+    attendingCeremony?: boolean | null;
+    ceremonyToast?: 'alcohol' | 'non_alcohol' | null;
 }
 
 interface Guest {
@@ -1183,6 +1190,7 @@ export default function RSVPDashboard() {
                                     <tr ref={rsvpHeadRef}>
                                         {rsvpHeader('name', 'Name')}
                                         {rsvpHeader('status', 'Status')}
+                                        {rsvpHeader('ceremony', 'City Hall')}
                                         {rsvpHeader('guests', 'Guests')}
                                         {/* Dietary hands roughly a third of its width to the
                                             message beside it: it holds a few short flags, and the
@@ -1212,6 +1220,31 @@ export default function RSVPDashboard() {
                                             ].filter(Boolean);
                                             return flags.length ? flags.join(', ') : '-';
                                         };
+                                        // The City Hall answer for each party member lives on
+                                        // guest_list.party_members, not on the dietary array `members`
+                                        // is built from above — cross-reference by name to find it.
+                                        const partyMembers = guests.find(
+                                            (g) => g.guest_name.toLowerCase() === rsvp.guest_name.toLowerCase(),
+                                        )?.party_members || [];
+                                        const ceremonyBadge = (
+                                            attending: boolean | null | undefined,
+                                            toast: 'alcohol' | 'non_alcohol' | null | undefined,
+                                        ) => {
+                                            if (attending == null) return <span className="text-xs text-gray-300">—</span>;
+                                            if (!attending) {
+                                                return (
+                                                    <span className="px-2 inline-flex text-xs leading-5 font-medium rounded-full bg-gray-100 text-gray-500">
+                                                        No
+                                                    </span>
+                                                );
+                                            }
+                                            const toastLabel = toast === 'alcohol' ? 'alcohol' : toast === 'non_alcohol' ? 'no alcohol' : null;
+                                            return (
+                                                <span className="px-2 inline-flex items-center gap-1 text-xs leading-5 font-medium rounded-full bg-blue-100 text-blue-800">
+                                                    Yes{toastLabel && <span className="text-blue-500">· {toastLabel}</span>}
+                                                </span>
+                                            );
+                                        };
                                         return (
                                             <React.Fragment key={rsvp.id}>
                                                 {/* Primary guest row */}
@@ -1225,6 +1258,9 @@ export default function RSVPDashboard() {
                                                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${rsvp.attending ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                                             {rsvp.attending ? 'Attending' : 'Declined'}
                                                         </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {ceremonyBadge(rsvp.attending_ceremony, rsvp.ceremony_toast)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         {rsvp.attending ? rsvp.number_of_guests : '-'}
@@ -1251,21 +1287,29 @@ export default function RSVPDashboard() {
                                                     </td>
                                                 </tr>
                                                 {/* Party member sub-rows */}
-                                                {members.map((member, mi) => (
-                                                    <tr key={`${rsvp.id}-m${mi}`} className="bg-gray-50/60">
-                                                        <td className="pl-10 pr-6 py-1.5 whitespace-nowrap border-l-2 border-gray-200">
-                                                            <span className="text-gray-300 mr-1.5 text-xs">└</span>
-                                                            <span className="text-sm text-gray-500 italic">{member.name || 'Unknown'}</span>
-                                                        </td>
-                                                        <td className="px-6 py-1.5 whitespace-nowrap">
-                                                            <span className="px-2 inline-flex text-xs leading-5 font-medium rounded-full bg-gray-100 text-gray-500">Attending</span>
-                                                        </td>
-                                                        <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
-                                                        <td className="px-6 py-1.5 text-xs text-gray-400">{dietaryFlags(member)}</td>
-                                                        <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
-                                                        <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
-                                                    </tr>
-                                                ))}
+                                                {members.map((member, mi) => {
+                                                    const matchedMember = partyMembers.find(
+                                                        (pm) => (pm.name || '').trim().toLowerCase() === (member.name || '').trim().toLowerCase(),
+                                                    );
+                                                    return (
+                                                        <tr key={`${rsvp.id}-m${mi}`} className="bg-gray-50/60">
+                                                            <td className="pl-10 pr-6 py-1.5 whitespace-nowrap border-l-2 border-gray-200">
+                                                                <span className="text-gray-300 mr-1.5 text-xs">└</span>
+                                                                <span className="text-sm text-gray-500 italic">{member.name || 'Unknown'}</span>
+                                                            </td>
+                                                            <td className="px-6 py-1.5 whitespace-nowrap">
+                                                                <span className="px-2 inline-flex text-xs leading-5 font-medium rounded-full bg-gray-100 text-gray-500">Attending</span>
+                                                            </td>
+                                                            <td className="px-6 py-1.5 whitespace-nowrap">
+                                                                {ceremonyBadge(matchedMember?.attendingCeremony, matchedMember?.ceremonyToast)}
+                                                            </td>
+                                                            <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
+                                                            <td className="px-6 py-1.5 text-xs text-gray-400">{dietaryFlags(member)}</td>
+                                                            <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
+                                                            <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </React.Fragment>
                                         );
                                     })}

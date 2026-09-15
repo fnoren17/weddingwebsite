@@ -46,6 +46,11 @@ ALTER TABLE guest_list ADD COLUMN IF NOT EXISTS party_members JSONB;
 ALTER TABLE guest_list ADD COLUMN IF NOT EXISTS flag VARCHAR(20);
 ALTER TABLE guest_list ADD COLUMN IF NOT EXISTS relationship VARCHAR(255);
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+-- The city hall ceremony is a separate yes/no from the party (`attending` above),
+-- since guests can attend one without the other. The toast preference only means
+-- anything when attending_ceremony is true.
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS attending_ceremony BOOLEAN;
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS ceremony_toast VARCHAR(20);
 -- Per-page "hidden from the nav" flag, added with the WIP controls. Created at
 -- runtime by /api/wip-status too; both must stay in step.
 ALTER TABLE wip_toggles ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;

@@ -135,17 +135,23 @@ function ev(title: string, time = '', isPublic?: boolean): ScheduleEvent {
     check('8am becomes 8:00 AM', normalizeEventTime('8am') === '8:00 AM', normalizeEventTime('8am'));
     check('8 AM becomes 8:00 AM', normalizeEventTime('8 AM') === '8:00 AM');
     check('4pm becomes 4:00 PM', normalizeEventTime('4pm') === '4:00 PM');
-    check('16:00 becomes 4:00 PM', normalizeEventTime('16:00') === '4:00 PM', normalizeEventTime('16:00'));
-    check('9.30am becomes 9:30 AM', normalizeEventTime('9.30am') === '9:30 AM');
-    check('1230 becomes 12:30 PM', normalizeEventTime('1230') === '12:30 PM', normalizeEventTime('1230'));
-    check('830 becomes 8:30 AM', normalizeEventTime('830') === '8:30 AM');
-    check('0800 becomes 8:00 AM', normalizeEventTime('0800') === '8:00 AM');
     check('4:00 p.m. becomes 4:00 PM', normalizeEventTime('4:00 p.m.') === '4:00 PM');
     check('noon becomes 12:00 PM', normalizeEventTime('noon') === '12:00 PM');
     check('midnight becomes 12:00 AM', normalizeEventTime('midnight') === '12:00 AM');
-    check('00:30 becomes 12:30 AM', normalizeEventTime('00:30') === '12:30 AM');
     check('already tidy is left alone', normalizeEventTime('4:00 PM') === '4:00 PM');
     check('tidying twice changes nothing', normalizeEventTime(normalizeEventTime('8am')) === '8:00 AM');
+
+    // No am/pm was typed, so the schedule keeps a 24-hour clock rather than
+    // guessing a half of the day and writing it back in am/pm notation.
+    check('16:00 stays 16:00, not 4:00 PM', normalizeEventTime('16:00') === '16:00', normalizeEventTime('16:00'));
+    check('17.00 stays 17:00, not 5:00 PM', normalizeEventTime('17.00') === '17:00', normalizeEventTime('17.00'));
+    check('9.30am becomes 9:30 AM', normalizeEventTime('9.30am') === '9:30 AM');
+    check('1230 becomes 12:30, not 12:30 PM', normalizeEventTime('1230') === '12:30', normalizeEventTime('1230'));
+    check('830 becomes 08:30, not 8:30 AM', normalizeEventTime('830') === '08:30', normalizeEventTime('830'));
+    check('0800 stays 08:00', normalizeEventTime('0800') === '08:00');
+    check('00:30 stays 00:30, not 12:30 AM', normalizeEventTime('00:30') === '00:30', normalizeEventTime('00:30'));
+    check('tidying a 24-hour time twice changes nothing',
+        normalizeEventTime(normalizeEventTime('17.00')) === '17:00');
 
     // A row can legitimately say when it happens in words. Rewriting that would
     // be worse than leaving it.
@@ -158,6 +164,9 @@ function ev(title: string, time = '', isPublic?: boolean): ScheduleEvent {
     check('formatting noon', formatEventTime(12 * 60) === '12:00 PM');
     check('formatting midnight', formatEventTime(0) === '12:00 AM');
     check('formatting pads the minutes', formatEventTime(9 * 60 + 5) === '9:05 AM');
+    check('formatting on a 24-hour clock', formatEventTime(17 * 60, true) === '17:00');
+    check('formatting on a 24-hour clock pads the hour', formatEventTime(8 * 60 + 5, true) === '08:05');
+    check('midnight on a 24-hour clock is 00:00', formatEventTime(0, true) === '00:00');
 }
 
 /* ---- the order is the times ---- */
