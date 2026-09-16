@@ -46,7 +46,7 @@ const PUBLIC_WRITE_LIMITS: Record<string, { limit: number; windowMs: number }> =
  * anything that doesn't run JavaScript. The list mirrors `publicPages` on the
  * WIP control page.
  */
-const GATED_PAGES = new Set(['/our-story', '/wedding-party', '/schedule', '/photos', '/registry', '/rsvp']);
+const GATED_PAGES = new Set(['/about', '/our-story', '/wedding-party', '/schedule', '/photos', '/registry', '/rsvp']);
 
 /**
  * The WIP table, fetched from our own API and held for a short while.
@@ -222,6 +222,7 @@ export const config = {
     matcher: [
         '/admin/:path*',
         '/api/:path*',
+        '/about',
         '/our-story',
         '/wedding-party',
         '/schedule',

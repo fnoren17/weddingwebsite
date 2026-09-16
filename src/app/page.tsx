@@ -1,5 +1,8 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { getSiteConfig } from '@/lib/config';
+import { ADMIN_COOKIE, verifyAdminToken } from '@/lib/auth';
+import pool from '@/lib/db';
 import CountdownClock from '@/components/CountdownClock';
 import FadeIn from '@/components/FadeIn';
 import HeroCollapse from '@/components/HeroCollapse';
@@ -38,6 +41,22 @@ export default async function Home() {
   const heroImages = slideshowEnabled ? slideshowImages : (config.homeHero ? [config.homeHero] : []);
   // A question with no text yet is a draft, not content.
   const faqs = (config.faqs || []).filter((f) => f.question?.trim() || f.answer?.trim());
+
+  // The middleware gates direct navigation to `/about`, but the section also
+  // renders inline here as part of `/` — hiding it has to happen here too, or
+  // a guest who never clicked the (now-hidden) nav link still sees it by
+  // scrolling. Admins keep seeing it while previewing the public site.
+  const cookieStore = await cookies();
+  const isAdminUser = (await verifyAdminToken(cookieStore.get(ADMIN_COOKIE)?.value)) !== null;
+  let aboutHidden = false;
+  if (!isAdminUser) {
+    try {
+      const result = await pool.query('SELECT is_hidden FROM wip_toggles WHERE page_path = $1', ['/about']);
+      aboutHidden = result.rows[0]?.is_hidden ?? false;
+    } catch {
+      // DB unavailable — show the section
+    }
+  }
 
   return (
     <div style={{ backgroundColor: bgColor }}>
@@ -155,7 +174,8 @@ export default async function Home() {
            No background here: each inner band carries its own solid colour so
            the rounded tops can reveal the band above them. */}
       <div id="about" className="relative">
-
+        {!aboutHidden && (
+        <>
         {/* Header */}
         <div className="relative -mt-8 rounded-t-[80px] py-20 bg-gray-50 shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.12)]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -296,6 +316,8 @@ export default async function Home() {
               )}
             </div>
           </div>
+        )}
+        </>
         )}
         {/* Nav Cards */}
         <div className="relative z-0 -mt-10 bg-white">

@@ -117,9 +117,13 @@ export default function Navigation({
         return () => observer.disconnect();
     }, [pathname]);
 
+    // `wipPath` is the key the About link is hidden/gated under. It differs
+    // from `href` because About isn't its own route — the link jumps to the
+    // #about section of the home page, but wip_toggles (and the WIP control
+    // page) know it only as `/about`.
     const allLinks = [
         { href: '/', label: t('home') },
-        { href: '/#about', label: t('about') },
+        { href: '/#about', wipPath: '/about', label: t('about') },
         { href: '/our-story', label: t('ourStory') },
         { href: '/wedding-party', label: t('weddingParty') },
         { href: '/schedule', label: t('schedule') },
@@ -132,7 +136,7 @@ export default function Navigation({
         ? allLinks.filter(l => basicModePages.includes(l.href))
         : allLinks
     ).filter(l => l.href !== '/registry' || registryEnabled || isAdmin)
-     .filter(l => isAdmin || !hiddenPaths.has(l.href));
+     .filter(l => isAdmin || !hiddenPaths.has(l.wipPath ?? l.href));
 
     // Nav link click side-effects.
     //  • Home            → reset the hero back to the full slideshow
