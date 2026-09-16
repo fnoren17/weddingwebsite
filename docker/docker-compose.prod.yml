@@ -21,6 +21,8 @@ services:
     image: wedding-web:local
     container_name: wedding-web-prod
     restart: always
+    ports:
+      - '3000:3000'
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy-net"
