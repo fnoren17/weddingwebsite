@@ -56,13 +56,16 @@ export function seatIndexer(used: Iterable<number>): () => number {
  * party it belonged to.
  *
  * Someone who answered "not attending" is skipped — a party of three where one
- * declined takes two chairs. Someone who has not answered is still seated;
- * nothing is assumed on their behalf.
+ * declined takes two chairs. That includes the named guest themselves
+ * (`primary_attending`): the RSVP form asks the party question per person, so
+ * they can decline while their household comes. Someone who has not answered is
+ * still seated; nothing is assumed on their behalf.
  */
 export function partyAttendees(guest: GuestListEntry): { name: string; guestListId: number | null }[] {
-    const people: { name: string; guestListId: number | null }[] = [
-        { name: guest.guest_name, guestListId: guest.id },
-    ];
+    const people: { name: string; guestListId: number | null }[] = [];
+    if (guest.primary_attending !== false) {
+        people.push({ name: guest.guest_name, guestListId: guest.id });
+    }
 
     const plusOne = (guest.plus_one_name ?? '').trim();
     const members = (guest.party_members ?? [])

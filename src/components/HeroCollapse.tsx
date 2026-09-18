@@ -13,6 +13,7 @@ interface HeroCollapseProps {
 
 // Photo positions — center-anchored offsets (vw/vh) from the sticky container center.
 // Each div has negative margin to center it on its anchor, so these are true center offsets.
+// Desktop only — narrow mobile screens skip this flourish (see applyProgress).
 const SCATTER: { x: number; y: number; rot: number; w: number }[] = [
   { x: -34, y: -24, rot: -7, w: 19 },
   { x:  34, y: -24, rot:  6, w: 19 },
@@ -20,16 +21,12 @@ const SCATTER: { x: number; y: number; rot: number; w: number }[] = [
   { x:  34, y:  14, rot: -7, w: 19 },
 ];
 
-// Animation duration (ms)
-const ANIM_DURATION = 900;
 // Section height in vh (100vh hero + 100vh "already scrolled past" scroll room)
 const SECTION_VH    = 200;
 // How long the finished collage is held on screen before sliding to #about
 const ABOUT_PAUSE_MS = 500;
 // Scroll offset so the About section's rounded top clears the fixed nav island
 const ABOUT_OFFSET   = 88;
-
-type CollapseState = 'full' | 'animating' | 'collapsed';
 
 /** Ease in-out cubic */
 function eio(t: number) {
@@ -96,49 +93,25 @@ export default function HeroCollapse({
   const [firstReady,   setFirstReady]   = useState(false);
   const [isMobile,     setIsMobile]     = useState(false);
 
-  // Mobile strip image indices — each strip holds its assigned image and only
-  // swaps when the slideshow would land on the same image (takes the vacated slide).
-  const [topImageIdx,  setTopImageIdx]  = useState(() => 1 % Math.max(srcs.length, 1));
-  const [botImageIdx,  setBotImageIdx]  = useState(() => 2 % Math.max(srcs.length, 1));
-  // Desktop scatter frame indices — same rule, one per scatter position
+  // Scatter frame indices — same rule, one per scatter position: each frame
+  // holds its assigned image and only swaps when the slideshow would land on
+  // the same image (takes the vacated slide).
   const [scatterIdxs,  setScatterIdxs]  = useState<number[]>(() =>
     SCATTER.map((_, i) => (i + 1) % Math.max(srcs.length, 1))
   );
   // Ref so interval/handlers always read the live current slide
   const currentSlideRef = useRef(0);
-  // Mobile full-screen hero uses xl resolution; drops to large during/after collapse
-  const [mobileHiRes, setMobileHiRes] = useState(true);
 
   const sectionRef   = useRef<HTMLDivElement>(null);
   const mainImgRef   = useRef<HTMLDivElement>(null);
   const textRef      = useRef<HTMLDivElement>(null);
   const scatterRefs  = useRef<(HTMLDivElement | null)[]>([]);
   const timerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rafRef       = useRef<number>(0);
 
-  // Animation state — stored in refs so wheel handler always sees latest values
-  const stateRef    = useRef<CollapseState>('full');
-  const progressRef = useRef(0); // 0 = full screen, 1 = fully collapsed
-
-  // Mobile-specific refs
-  const mobileSectionRef = useRef<HTMLDivElement>(null);
-  const mobileMidRef    = useRef<HTMLDivElement>(null);
-  const mobileTopRef    = useRef<HTMLDivElement>(null);
-  const mobileBotRef    = useRef<HTMLDivElement>(null);
-  const mobileTextRef   = useRef<HTMLDivElement>(null);
-  const mobileHintRef   = useRef<HTMLDivElement>(null);
-  const mobileCanvasRef = useRef<HTMLCanvasElement>(null);
-  const mobileStateRef  = useRef<CollapseState>('full');
-  const mobileProgressRef = useRef(0);
-  const mobileRafRef    = useRef<number>(0);
-  const mobileParticles = useRef<Array<{
-    x: number; y: number; vx: number; vy: number;
-    size: number; life: number; decay: number;
-    color: string; rot: number; rotV: number; isPetal: boolean;
-  }>>([]);
-  const mobileParticleRaf    = useRef<number>(0);
-  const mobilePostHintRef    = useRef<HTMLDivElement>(null);
-  const mobileDotsRef        = useRef<HTMLDivElement>(null);
+  // Scroll-linked collapse progress — a pure function of scroll position, not a
+  // timed commit. 0 = full screen, 1 = fully collapsed.
+  const progressRef = useRef(0);
+  const collapsingRef = useRef(false); // has 'hero-collapsing' fired for the current crossing?
 
   // Pending "pause, then slide to #about" timer (nav About click while on home)
   const aboutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,20 +131,6 @@ export default function HeroCollapse({
     }
   };
 
-  // ── Keep the particle canvas's bitmap the size of its box ────────────────
-  // One observer for the life of the mobile layout. A ref callback used to
-  // create a new ResizeObserver on every render and never disconnect it.
-  useEffect(() => {
-    const el = mobileCanvasRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => {
-      el.width  = el.offsetWidth;
-      el.height = el.offsetHeight;
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [isMobile]);
-
   // ── Detect mobile (also responds to resize / DevTools viewport changes) ──
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -186,7 +145,7 @@ export default function HeroCollapse({
     if (srcs.length === 0) return;
     let cancelled = false;
     const first = new window.Image();
-    first.src = photoSrc(srcs[0], 'xl');
+    first.src = photoSrc(srcs[0], isMobile ? 'large' : 'xl');
     first.decode()
       .then(() => { if (!cancelled) setFirstReady(true); })
       .catch(() => { if (!cancelled) setFirstReady(true); });
@@ -207,9 +166,7 @@ export default function HeroCollapse({
       const next = (prev + 1) % srcs.length;
       currentSlideRef.current = next;
       setCurrentSlide(next);
-      // Swap any strip that would duplicate the incoming slide — give it the vacated slide
-      setTopImageIdx(t => t === next ? prev : t);
-      setBotImageIdx(b => b === next ? prev : b);
+      // Swap any scatter frame that would duplicate the incoming slide — give it the vacated slide
       setScatterIdxs(idxs => idxs.map(idx => idx === next ? prev : idx));
     }, interval);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
@@ -220,10 +177,17 @@ export default function HeroCollapse({
   const applyProgress = (p: number) => {
     const e = eio(p); // eased p for main image / text
 
-    // Main image: full viewport → condensed strip
+    // Main image: full viewport → condensed card. Mobile shrinks much less
+    // (screens are already narrow) so it settles into a framed photo card
+    // instead of the thin strip the same percentages would make on a phone.
     if (mainImgRef.current) {
-      mainImgRef.current.style.width        = `${100 - 64 * e}vw`;
-      mainImgRef.current.style.height       = `${100 - 20 * e}vh`;
+      if (isMobile) {
+        mainImgRef.current.style.width  = `${100 - 12 * e}vw`;
+        mainImgRef.current.style.height = `${100 - 25 * e}svh`;
+      } else {
+        mainImgRef.current.style.width  = `${100 - 64 * e}vw`;
+        mainImgRef.current.style.height = `${100 - 20 * e}vh`;
+      }
       mainImgRef.current.style.borderRadius = `${e * 20}px`;
       const overlay = mainImgRef.current.querySelector<HTMLElement>('.hero-overlay');
       if (overlay) overlay.style.opacity = String(0.4 - 0.3 * e);
@@ -248,29 +212,6 @@ export default function HeroCollapse({
       el.style.transform =
         `translate(${startX + (s.x - startX) * se}vw, ${s.y}vh) rotate(${s.rot * se}deg)`;
     });
-  };
-
-  // ── Timed animation runner ────────────────────────────────────────────────
-  const runAnimation = (target: number, onDone: () => void) => {
-    const from  = progressRef.current;
-    const start = performance.now();
-    cancelAnimationFrame(rafRef.current);
-
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / ANIM_DURATION);
-      const p = from + (target - from) * t; // linear interpolation — easing is inside applyProgress
-      progressRef.current = p;
-      applyProgress(p);
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        progressRef.current = target;
-        applyProgress(target);
-        onDone();
-      }
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
   };
 
   // ── Always (re)enter the homepage at the very top ───────────────────────
@@ -298,33 +239,14 @@ export default function HeroCollapse({
 
   useEffect(() => () => { cancelAboutTimer(); cancelHomeScroll(); }, []);
 
-  // ── Snap to collapsed if page scrolls past hero without wheel animation ──
-  // This handles hash-link navigation (e.g. clicking "About" in the nav),
-  // which jumps scrollY past the section without triggering the wheel handler.
+  // ── Scroll-linked collapse ─────────────────────────────────────────────────
+  // Progress is derived straight from scroll position — no locked, timed
+  // commit that plays out regardless of how far the user actually scrolled.
+  // A small scroll gives a small change; scrolling keeps moving toward the
+  // content underneath instead of getting stuck in a canned animation. Same
+  // mechanism on mobile and desktop — only the tuning constants in
+  // applyProgress differ.
   useEffect(() => {
-    if (isMobile) return;
-
-    const snapIfNeeded = () => {
-      if (stateRef.current !== 'full' || progressRef.current > 0) return;
-      if (window.scrollY < 10) return;
-      // Programmatic scroll bypassed the wheel animation — snap instantly to collapsed
-      cancelAnimationFrame(rafRef.current);
-      stateRef.current = 'collapsed';
-      progressRef.current = 1;
-      applyProgress(1);
-      window.dispatchEvent(new CustomEvent('hero-collapsing'));
-    };
-
-    window.addEventListener('scroll', snapIfNeeded, { passive: true });
-    // Also check immediately in case the page loaded with a hash already scrolled
-    snapIfNeeded();
-    return () => window.removeEventListener('scroll', snapIfNeeded);
-  }, [isMobile]);
-
-  // ── Wheel / touch event hijacking (desktop only) ─────────────────────────
-  useEffect(() => {
-    if (isMobile) return;
-
     const sectionScrollRoom = () => {
       // The "collapsed" scroll position = section start + SECTION_VH - 100vh
       const section = sectionRef.current;
@@ -332,91 +254,56 @@ export default function HeroCollapse({
       return section.offsetTop + section.offsetHeight - window.innerHeight;
     };
 
-    const onWheel = (e: WheelEvent) => {
-      const state = stateRef.current;
+    // The collapse plays out over the first viewport-height of scroll inside
+    // the section — exactly the range the sticky hero stays pinned for.
+    const update = () => {
+      const section = sectionRef.current;
+      if (!section) return;
+      const range = window.innerHeight;
+      const raw = (window.scrollY - section.offsetTop) / range;
+      const p = Math.max(0, Math.min(1, raw));
+      progressRef.current = p;
+      applyProgress(p);
 
-      // Lock scroll during animation
-      if (state === 'animating') {
-        e.preventDefault();
-        return;
-      }
-
-      // Collapse: hero is full, user scrolls down
-      if (state === 'full' && e.deltaY > 0) {
-        e.preventDefault();
-        stateRef.current = 'animating';
-        // Tell the nav to become an island pill at the same moment the hero starts collapsing
+      if (p > 0 && !collapsingRef.current) {
+        collapsingRef.current = true;
         window.dispatchEvent(new CustomEvent('hero-collapsing'));
-        runAnimation(1, () => {
-          stateRef.current = 'collapsed';
-          // Jump scroll to the end of the section so the page content is reachable
-          window.scrollTo({ top: sectionScrollRoom(), behavior: 'instant' });
-        });
-        return;
-      }
-
-      // Expand: hero is collapsed, user scrolls up, and they're still at the section boundary
-      if (state === 'collapsed' && e.deltaY < 0) {
-        const atSectionBoundary = window.scrollY <= sectionScrollRoom() + 8;
-        if (atSectionBoundary) {
-          e.preventDefault();
-          cancelAboutTimer(); // user took over during the pause — drop the queued slide
-          stateRef.current = 'animating';
-          // Tell the nav to go back to full banner at the same moment the hero starts expanding
-          window.dispatchEvent(new CustomEvent('hero-expanded'));
-          runAnimation(0, () => {
-            stateRef.current = 'full';
-            window.scrollTo({ top: 0, behavior: 'instant' });
-          });
-        }
+      } else if (p === 0 && collapsingRef.current) {
+        collapsingRef.current = false;
+        window.dispatchEvent(new CustomEvent('hero-expanded'));
       }
     };
 
-    // Reset to the slideshow start — fired when the user clicks "Home" in the nav.
-    // Glides back up to the hero and then plays the collage → slideshow expand,
-    // the exact reverse of the About sequence. Jumping straight to the top would
-    // skip past everything the user scrolled through.
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(update);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    // Paint the correct state immediately (handles hash-nav landing mid-scroll)
+    update();
+
+    // Reset to the slideshow start — fired when the user clicks "Home" in the
+    // nav. A normal smooth scroll to the top; the scroll listener above
+    // re-expands the hero as it passes back through the collapse range.
     const onReset = () => {
       cancelAboutTimer();
       cancelHomeScroll();
-      if (stateRef.current === 'animating') return;
-
-      const expand = () => {
-        homeScrollRef.current = null;
-        cancelAnimationFrame(rafRef.current);
-        stateRef.current = 'animating';
-        // Reclaim the scroll room *before* animating, not after. The hero is
-        // sticky and pinned across the whole section so the jump is invisible
-        // either way, but doing it first means no trailing scroll event can
-        // land at 900 and flip the nav back to its island mid-expand.
-        window.scrollTo({ top: 0, behavior: 'instant' });
-        window.dispatchEvent(new CustomEvent('hero-expanded'));
-        runAnimation(0, () => { stateRef.current = 'full'; });
-      };
-
-      const room = sectionScrollRoom();
-      // Already at the top with the hero open: nothing to undo.
-      if (stateRef.current === 'full' && window.scrollY <= 1) return;
-      // Standing at the section boundary already — go straight into the expand.
-      if (window.scrollY <= room + 8) { expand(); return; }
-
-      homeScrollRef.current = smoothScrollTo(room, expand);
+      if (window.scrollY <= 1) return;
+      homeScrollRef.current = smoothScrollTo(0, () => { homeScrollRef.current = null; });
     };
 
-    // "About" clicked in the nav while already on the home page: play the
-    // slideshow → collage collapse, hold it for a beat, then glide to #about.
+    // "About" clicked in the nav while already on the home page: scroll down
+    // to the collapsed card, hold it for a beat, then glide to #about.
     const onToAbout = () => {
-      if (stateRef.current === 'animating') return;
       cancelAboutTimer();
-      if (stateRef.current === 'collapsed') {
+      if (progressRef.current >= 1) {
         scrollToAbout('smooth');
         return;
       }
-      stateRef.current = 'animating';
-      window.dispatchEvent(new CustomEvent('hero-collapsing'));
-      runAnimation(1, () => {
-        stateRef.current = 'collapsed';
-        window.scrollTo({ top: sectionScrollRoom(), behavior: 'instant' });
+      homeScrollRef.current = smoothScrollTo(sectionScrollRoom(), () => {
+        homeScrollRef.current = null;
         aboutTimerRef.current = setTimeout(() => {
           aboutTimerRef.current = null;
           scrollToAbout('smooth');
@@ -424,15 +311,16 @@ export default function HeroCollapse({
       });
     };
 
-    // Non-passive so we can preventDefault
-    window.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('hero-reset', onReset);
     window.addEventListener('hero-to-about', onToAbout);
     return () => {
-      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('hero-reset', onReset);
       window.removeEventListener('hero-to-about', onToAbout);
+      cancelAnimationFrame(raf);
     };
+  // applyProgress's only reactive input is isMobile, already in the deps below —
+  // re-defining it every render would tear down/rebuild the scroll listener constantly.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile]);
 
@@ -446,481 +334,17 @@ export default function HeroCollapse({
     );
   }
 
-  // ── Mobile: vertical collapse animation on first scroll ──────────────────
-  // useLayoutEffect so refs are populated by the time this runs after every
-  // render — critical when isMobile flips true in DevTools/resize because
-  // useEffect fires before the browser has committed the new mobile JSX.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useLayoutEffect(() => {
-    if (!isMobile) return;
-
-    const mid  = mobileMidRef.current;
-    const top  = mobileTopRef.current;
-    const bot  = mobileBotRef.current;
-    const text = mobileTextRef.current;
-    const hint = mobileHintRef.current;
-    if (!mid || !top || !bot) return;
-
-    function applyMobileProgress(p: number) {
-      if (!mid || !top || !bot || !hint) return;
-      const e = p < 0.5 ? 4*p*p*p : 1 - Math.pow(-2*p+2,3)/2;
-
-      // Collage padding — 90px top, 30px bottom when fully collapsed, 0 when full-hero
-      const H    = window.innerHeight;
-      const PTOP = 90;
-      const PBOT = 30;
-      const padTop = PTOP * e;
-      const padBot = PBOT * e;
-      const stripH = (H - padTop - padBot) / 3;    // each strip's height in px
-
-      // Middle strip: squish from full → padded center third
-      mid.style.top    = `${(padTop + stripH) * e}px`;
-      mid.style.height = `${H + (stripH - H) * e}px`;
-
-      // Separator lines on mid strip edges — ride with the squish
-      const lineAlpha = Math.max(0, Math.min(1, (p - 0.3) / 0.4)).toFixed(3);
-      mid.style.borderTop    = `2px solid rgba(255,255,255,${lineAlpha})`;
-      mid.style.borderBottom = `2px solid rgba(255,255,255,${lineAlpha})`;
-
-      // Top strip: animate top edge and height
-      top.style.top    = `${padTop}px`;
-      top.style.height = `${stripH}px`;
-
-      // Bottom strip: animate bottom edge and height
-      bot.style.bottom = `${padBot}px`;
-      bot.style.height = `${stripH}px`;
-
-      // Top/bot strips slide in from off-screen (0.15s delay)
-      const topE = (() => { const t = Math.max(0, Math.min(1, (p - 0.15) / 0.85)); return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; })();
-      top.style.transform = `translateY(${-100 * (1 - topE)}%)`;
-      bot.style.transform = `translateY(${100 * (1 - topE)}%)`;
-
-      // Text: scale down and follow mid strip center (which shifts down by (PTOP-PBOT)/2 as padding grows)
-      if (text) {
-        const scale = 1 - 0.35 * e;
-        // Mid strip center vs viewport center offset: (padTop - padBot) / 2
-        const textDY = ((PTOP - PBOT) / 2) * e;   // ~0 → 30px downward
-        text.style.transform    = `translateY(${textDY.toFixed(1)}px) scale(${scale.toFixed(3)})`;
-        text.style.opacity      = '1';
-        text.style.pointerEvents = p > 0.05 ? 'none' : 'auto';
-        // Collapse the buttons (height + fade) AND the gap the date reserves for
-        // them, so the title/date settle into the true center of the mid strip.
-        const btns = text.querySelector('[data-hero-role="buttons"]') as HTMLElement | null;
-        if (btns) {
-          btns.style.overflow  = 'hidden';
-          btns.style.opacity   = String(Math.max(0, 1 - e * 4));
-          btns.style.maxHeight = `${btns.scrollHeight * (1 - e)}px`;
-        }
-        const date = text.querySelector('[data-hero-role="date"]') as HTMLElement | null;
-        if (date) date.style.marginBottom = `${48 * (1 - e)}px`;   // collapse date's mb-12 (3rem)
-        if (p === 0) {
-          text.style.transform     = '';
-          text.style.opacity       = '1';
-          text.style.pointerEvents = 'auto';
-          if (btns) { btns.style.opacity = '1'; btns.style.maxHeight = ''; btns.style.overflow = ''; }
-          if (date) date.style.marginBottom = '';
-        }
-      }
-
-      // Slideshow dots: hero mode bottom=66px → collage mode bottom=36px
-      const dots = mobileDotsRef.current;
-      if (dots) dots.style.bottom = `${66 - 30 * e}px`;
-
-      // Pre-collapse scroll hint fades out
-      hint.style.opacity = String(Math.max(0, 1 - p * 5));
-
-      // Post-collapse scroll hint: fade in and keep inside the bottom strip
-      const postHint = mobilePostHintRef.current;
-      if (postHint) {
-        postHint.style.opacity = String(Math.max(0, (p - 0.85) / 0.15));
-        // Position inside bottom strip — strip bottom edge is padBot from screen bottom
-        postHint.style.bottom = `${padBot + 14}px`;
-      }
-    }
-
-    function fireParticles(direction: 'collapse' | 'expand') {
-      const canvas = mobileCanvasRef.current;
-      if (!canvas) return;
-      const W = canvas.offsetWidth, H = canvas.offsetHeight;
-      const count = 32;
-      for (let i = 0; i < count; i++) {
-        let x: number, y: number, vx: number, vy: number;
-        if (direction === 'collapse') {
-          const seam = Math.random() < 0.5 ? H * 0.333 : H * 0.667;
-          x = Math.random() * W;
-          y = seam + (Math.random() - 0.5) * 8;
-          const angle = (Math.random() - 0.5) * Math.PI * 1.4;
-          const speed = 1.2 + Math.random() * 2.2;
-          vx = Math.cos(angle) * speed;
-          vy = Math.sin(angle) * speed * 0.6;
-        } else {
-          x = W / 2 + (Math.random() - 0.5) * 40;
-          y = H / 2 + (Math.random() - 0.5) * 40;
-          const angle = Math.random() * Math.PI * 2;
-          const speed = 1.5 + Math.random() * 3;
-          vx = Math.cos(angle) * speed;
-          vy = Math.sin(angle) * speed;
-        }
-        const type = Math.random();
-        mobileParticles.current.push({
-          x, y, vx, vy,
-          size:    2 + Math.random() * 3,
-          life:    1,
-          decay:   0.012 + Math.random() * 0.018,
-          color:   type < 0.5 ? 'rgba(212,175,55,A)' : type < 0.75 ? 'rgba(255,255,255,A)' : 'rgba(220,140,140,A)',
-          rot:     Math.random() * Math.PI * 2,
-          rotV:    (Math.random() - 0.5) * 0.15,
-          isPetal: Math.random() < 0.35,
-        });
-      }
-      if (mobileParticleRaf.current) cancelAnimationFrame(mobileParticleRaf.current);
-      function particleTick() {
-        const canvas = mobileCanvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        mobileParticles.current = mobileParticles.current.filter(p => p.life > 0);
-        for (const p of mobileParticles.current) {
-          p.x += p.vx; p.y += p.vy; p.vy += 0.045; p.vx *= 0.978;
-          p.rot += p.rotV; p.life -= p.decay;
-          const alpha = Math.max(0, p.life);
-          const col = p.color.replace('A', alpha.toFixed(2));
-          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-          if (p.isPetal) {
-            ctx.beginPath(); ctx.ellipse(0, 0, p.size * 0.6, p.size * 1.4, 0, 0, Math.PI * 2);
-            ctx.fillStyle = col; ctx.fill();
-          } else {
-            ctx.beginPath(); ctx.arc(0, 0, p.size * 0.5, 0, Math.PI * 2);
-            ctx.fillStyle = col; ctx.fill();
-          }
-          ctx.restore();
-        }
-        if (mobileParticles.current.length > 0) mobileParticleRaf.current = requestAnimationFrame(particleTick);
-        else ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-      mobileParticleRaf.current = requestAnimationFrame(particleTick);
-    }
-
-    function runMobileAnimation(target: number, onDone: () => void) {
-      const from = mobileProgressRef.current;
-      const start = performance.now();
-      let particleFired = false;
-      if (mobileRafRef.current) cancelAnimationFrame(mobileRafRef.current);
-      function tick(now: number) {
-        const t = Math.min(1, (now - start) / ANIM_DURATION);
-        mobileProgressRef.current = from + (target - from) * t;
-        applyMobileProgress(mobileProgressRef.current);
-        if (!particleFired && mobileProgressRef.current >= 0.65 && mobileProgressRef.current <= 0.85) {
-          particleFired = true;
-          fireParticles(target === 1 ? 'collapse' : 'expand');
-        }
-        if (t < 1) mobileRafRef.current = requestAnimationFrame(tick);
-        else { mobileProgressRef.current = target; applyMobileProgress(target); onDone(); }
-      }
-      mobileRafRef.current = requestAnimationFrame(tick);
-    }
-
-    // Scroll room = outer section height minus one viewport (mirrors desktop pattern)
-    const mobileSectionScrollRoom = () => {
-      const section = mobileSectionRef.current;
-      if (!section) return 0;
-      return section.offsetTop + section.offsetHeight - window.innerHeight;
-    };
-
-    function collapse() {
-      if (mobileStateRef.current !== 'full') return;
-      mobileStateRef.current = 'animating';
-      // Drop to large resolution as animation starts — transition covers the swap
-      setMobileHiRes(false);
-      window.dispatchEvent(new CustomEvent('hero-collapsing'));
-      runMobileAnimation(1, () => {
-        mobileStateRef.current = 'collapsed';
-        window.scrollTo({ top: mobileSectionScrollRoom(), behavior: 'instant' });
-      });
-    }
-
-    function expand() {
-      if (mobileStateRef.current !== 'collapsed') return;
-      mobileStateRef.current = 'animating';
-      // Restore xl resolution now while the strip is still tiny — it loads in
-      // the background so it's sharp by the time the hero is full-screen again
-      setMobileHiRes(true);
-      window.dispatchEvent(new CustomEvent('hero-expanded'));
-      runMobileAnimation(0, () => {
-        window.scrollTo({ top: 0, behavior: 'instant' });
-        setTimeout(() => { mobileStateRef.current = 'full'; }, 50);
-      });
-    }
-
-    // Scroll watcher — two jobs:
-    // 1. Snap to collapsed if page scrolled past hero without the animation
-    //    (back-button, hash nav, etc.)
-    // 2. Auto-trigger expand when scrolling back up to the section boundary,
-    //    including during iOS momentum scrolling where touch events don't fire.
-    const onScroll = () => {
-      const s = mobileStateRef.current;
-
-      // Job 1: snap to collapsed
-      if (s === 'full' && mobileProgressRef.current === 0 && window.scrollY > 10) {
-        cancelAnimationFrame(mobileRafRef.current);
-        mobileStateRef.current = 'collapsed';
-        mobileProgressRef.current = 1;
-        applyMobileProgress(1);
-        window.dispatchEvent(new CustomEvent('hero-collapsing'));
-        return;
-      }
-
-      // Job 2: auto-expand when momentum/active-scroll brings us back to boundary.
-      // Use a negative buffer so this only fires when the user has scrolled
-      // UP past the landing point, not immediately after the collapse jump.
-      if (s === 'collapsed' && window.scrollY <= mobileSectionScrollRoom() - 80) {
-        expand();
-      }
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-
-    let touchStartY: number | null = null;
-    function onTouchStart(e: TouchEvent) { touchStartY = e.touches[0].clientY; }
-    function onTouchMove(e: TouchEvent) {
-      const s = mobileStateRef.current;
-
-      // Always block scroll during animation
-      if (s === 'animating') { e.preventDefault(); return; }
-
-      if (touchStartY === null) return;
-      const dy = touchStartY - e.touches[0].clientY;
-
-      // Hero is full: any downward intent → consume entirely, trigger animation
-      if (s === 'full') {
-        e.preventDefault(); // block ALL scroll while hero is full
-        if (dy > 5) collapse();
-        return;
-      }
-
-      // Hero is collapsed and user is at section boundary: upward swipe → expand
-      if (s === 'collapsed') {
-        const atBoundary = window.scrollY <= mobileSectionScrollRoom() + 10;
-        if (atBoundary && dy < -5) { e.preventDefault(); cancelAboutTimer(); expand(); return; }
-      }
-    }
-    function onTouchEnd() { touchStartY = null; }
-
-    // Wheel handler — for desktop browsers at phone-sized viewport widths.
-    // Real mobile devices send touch events (above); desktop sends wheel events.
-    // Both paths call the same collapse()/expand() so behaviour is identical.
-    const onWheel = (e: WheelEvent) => {
-      const s = mobileStateRef.current;
-      if (s === 'animating') { e.preventDefault(); return; }
-      if (s === 'full' && e.deltaY > 0) {
-        e.preventDefault();
-        collapse();
-        return;
-      }
-      if (s === 'collapsed' && e.deltaY < 0) {
-        const atBoundary = window.scrollY <= mobileSectionScrollRoom() + 8;
-        if (atBoundary) { e.preventDefault(); cancelAboutTimer(); expand(); }
-      }
-    };
-
-    // "About" clicked in the nav while already on the home page — same beat as
-    // desktop: collapse to the collage, hold, then glide down to #about.
-    const onToAbout = () => {
-      const s = mobileStateRef.current;
-      if (s === 'animating') return;
-      cancelAboutTimer();
-      if (s === 'collapsed') { scrollToAbout('smooth'); return; }
-      mobileStateRef.current = 'animating';
-      setMobileHiRes(false);
-      window.dispatchEvent(new CustomEvent('hero-collapsing'));
-      runMobileAnimation(1, () => {
-        mobileStateRef.current = 'collapsed';
-        window.scrollTo({ top: mobileSectionScrollRoom(), behavior: 'instant' });
-        aboutTimerRef.current = setTimeout(() => {
-          aboutTimerRef.current = null;
-          scrollToAbout('smooth');
-        }, ABOUT_PAUSE_MS);
-      });
-    };
-
-    // Reset to the slideshow start — fired when the user clicks "Home" in the nav.
-    // Same two beats as desktop: glide back up to the hero, then expand.
-    const onReset = () => {
-      cancelAboutTimer();
-      cancelHomeScroll();
-      if (mobileStateRef.current === 'animating') return;
-
-      const runExpand = () => {
-        homeScrollRef.current = null;
-        if (mobileRafRef.current) cancelAnimationFrame(mobileRafRef.current);
-        mobileStateRef.current = 'animating';
-        setMobileHiRes(true);
-        // Scroll room reclaimed first — see the desktop path for why.
-        window.scrollTo({ top: 0, behavior: 'instant' });
-        window.dispatchEvent(new CustomEvent('hero-expanded'));
-        runMobileAnimation(0, () => {
-          setTimeout(() => { mobileStateRef.current = 'full'; }, 50);
-        });
-      };
-
-      const room = mobileSectionScrollRoom();
-      if (mobileStateRef.current === 'full' && window.scrollY <= 1) return;
-      if (window.scrollY <= room + 8) { runExpand(); return; }
-
-      homeScrollRef.current = smoothScrollTo(room, runExpand);
-    };
-
-    window.addEventListener('touchstart', onTouchStart, { passive: true });
-    window.addEventListener('touchmove',  onTouchMove,  { passive: false });
-    window.addEventListener('touchend',   onTouchEnd,   { passive: true });
-    window.addEventListener('wheel',      onWheel,      { passive: false });
-    window.addEventListener('hero-reset', onReset);
-    window.addEventListener('hero-to-about', onToAbout);
-
-    // Paint whatever state we're actually in. Not hard-coded to 0: a deep-link
-    // to /#about lands the page already scrolled, and onScroll above has
-    // already snapped us to the collapsed collage.
-    applyMobileProgress(mobileProgressRef.current);
-    return () => {
-      window.removeEventListener('touchstart', onTouchStart);
-      window.removeEventListener('touchmove',  onTouchMove);
-      window.removeEventListener('touchend',   onTouchEnd);
-      window.removeEventListener('wheel',      onWheel);
-      window.removeEventListener('hero-reset', onReset);
-      window.removeEventListener('hero-to-about', onToAbout);
-      window.removeEventListener('scroll', onScroll);
-      if (mobileRafRef.current) cancelAnimationFrame(mobileRafRef.current);
-      if (mobileParticleRaf.current) cancelAnimationFrame(mobileParticleRaf.current);
-    };
-  }, [isMobile]);
-
-  if (isMobile) {
-    // 200svh outer section mirrors desktop 200vh pattern:
-    // sticky inner stays at top while scroll room lets us jump scrollY after animation
-    return (
-      <div ref={mobileSectionRef} style={{ height: '200svh' }}>
-      <div className="relative" style={{ position: 'sticky', top: 0, height: '100svh', overflow: 'hidden', backgroundColor: bgColor }}>
-        {/* Particle canvas — dimensions set via ResizeObserver so they're correct after layout */}
-        <canvas
-          ref={mobileCanvasRef}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 30, pointerEvents: 'none' }}
-        />
-
-        {/* TOP strip — slides in from above; crossfades at currentSlide+1 offset */}
-        <div ref={mobileTopRef} style={{
-          position: 'absolute', left: 0, right: 0,
-          top: 0, height: '33.333%',
-          overflow: 'hidden',
-          transform: 'translateY(-100%)',
-          zIndex: 5,
-        }}>
-          <div className="absolute inset-0 bg-gray-800 transition-opacity duration-700"
-               style={{ opacity: firstReady ? 0 : 1, zIndex: 2 }} />
-          {srcs.map((src, i) => (
-            <img key={src} src={photoSrc(src, 'medium')} alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ opacity: i === topImageIdx ? 1 : 0, transition: 'opacity 1200ms cubic-bezier(0.4,0,0.2,1)', zIndex: i === topImageIdx ? 1 : 0 }} />
-          ))}
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 3 }} />
-        </div>
-
-        {/* MIDDLE strip — main slideshow, images only (text lives outside) */}
-        <div ref={mobileMidRef} style={{
-          position: 'absolute', left: 0, right: 0,
-          top: 0, height: '100%',
-          overflow: 'hidden',
-          zIndex: 10,
-        }}>
-          <div className="absolute inset-0 bg-gray-800 transition-opacity duration-700"
-               style={{ opacity: firstReady ? 0 : 1, zIndex: 2 }} />
-          {srcs.map((src, i) => (
-            <img key={src}
-                 src={photoSrc(src, mobileHiRes ? 'xl' : 'large')}
-                 alt="Hero"
-                 fetchPriority={i === 0 ? 'high' : 'low'}
-                 className="absolute inset-0 w-full h-full object-cover"
-                 style={{
-                   opacity: i === currentSlide ? 1 : 0,
-                   transition: 'opacity 1200ms cubic-bezier(0.4,0,0.2,1)',
-                   zIndex: i === currentSlide ? 1 : 0,
-                 }} />
-          ))}
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.40)', zIndex: 3 }} />
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, height: '160px',
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 100%)',
-            zIndex: 4, pointerEvents: 'none',
-          }} />
-          {/* Slide dots intentionally omitted on mobile — desktop only */}
-        </div>
-
-        {/* BOTTOM strip — slides in from below; crossfades at currentSlide+2 offset */}
-        <div ref={mobileBotRef} style={{
-          position: 'absolute', left: 0, right: 0,
-          bottom: 0, height: '33.333%',
-          overflow: 'hidden',
-          transform: 'translateY(100%)',
-          zIndex: 5,
-        }}>
-          <div className="absolute inset-0 bg-gray-800 transition-opacity duration-700"
-               style={{ opacity: firstReady ? 0 : 1, zIndex: 2 }} />
-          {srcs.map((src, i) => (
-            <img key={src} src={photoSrc(src, 'medium')} alt=""
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ opacity: i === botImageIdx ? 1 : 0, transition: 'opacity 1200ms cubic-bezier(0.4,0,0.2,1)', zIndex: i === botImageIdx ? 1 : 0 }} />
-          ))}
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 3 }} />
-        </div>
-
-        {/* ── Text overlay ── */}
-        <div ref={mobileTextRef} style={{
-          position: 'absolute', inset: 0, zIndex: 20,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          pointerEvents: 'none',
-        }}>
-          {children}
-        </div>
-
-        {/* Pre-collapse scroll hint */}
-        <div ref={mobileHintRef} style={{
-          position: 'absolute', bottom: '20px', left: 0, right: 0,
-          textAlign: 'center', zIndex: 21, pointerEvents: 'none',
-        }}>
-          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-                        animation: 'hint-bounce 1.8s ease-in-out infinite' }}>
-            <span style={{ fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>scroll</span>
-            <span style={{ fontSize: '16px', color: 'rgba(255,255,255,0.4)' }}>↓</span>
-          </div>
-        </div>
-
-        {/* Post-collapse scroll hint — on the bottom strip, fades in when animation completes */}
-        <div ref={mobilePostHintRef} style={{
-          position: 'absolute', bottom: '20px', left: 0, right: 0,
-          textAlign: 'center', zIndex: 21, opacity: 0, pointerEvents: 'none',
-        }}>
-          <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '4px',
-                        animation: 'hint-bounce 1.8s ease-in-out infinite' }}>
-            <span style={{ fontSize: '10px', letterSpacing: '3px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>scroll</span>
-            <span style={{ fontSize: '16px', color: 'rgba(255,255,255,0.4)' }}>↓</span>
-          </div>
-        </div>
-
-        <style>{`@keyframes hint-bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(5px)} }`}</style>
-      </div>
-      </div>
-    );
-  }
-
-  // ── Desktop: snap-animated collapse ──────────────────────────────────────
+  // ── Snap-animated collapse: full-bleed slideshow → condensed card ────────
   // Section is SECTION_VH tall: 100vh = hero + 100vh scroll room (jumped past on collapse).
+  // Same mechanism on mobile and desktop; only the shrink amounts in
+  // applyProgress differ, and the scatter/dots flourishes are desktop-only.
   return (
     <div ref={sectionRef} style={{ height: `${SECTION_VH}vh` }}>
       <div
         style={{
           position: 'sticky',
           top: 0,
-          height: '100vh',
+          height: '100svh',
           overflow: 'hidden',
           backgroundColor: bgColor,
         }}
@@ -933,7 +357,7 @@ export default function HeroCollapse({
         }} />
 
         {/* ── Scattered photos — each frame crossfades at currentSlide+1+i offset ── */}
-        {srcs.length > 1 && SCATTER.map((s, i) => (
+        {!isMobile && srcs.length > 1 && SCATTER.map((s, i) => (
           <div
             key={i}
             ref={el => { scatterRefs.current[i] = el; }}
@@ -964,14 +388,14 @@ export default function HeroCollapse({
           </div>
         ))}
 
-        {/* ── Main hero image (starts full-screen, condenses to strip) ── */}
+        {/* ── Main hero image (starts full-screen, condenses to a card) ── */}
         <div
           ref={mainImgRef}
           style={{
             position: 'absolute',
             left: '50%', top: '50%',
             transform: 'translate(-50%, -50%)',
-            width: '100vw', height: '100vh',
+            width: '100vw', height: '100svh',
             overflow: 'hidden',
             borderRadius: '0px',
             transition: 'none',
@@ -981,7 +405,7 @@ export default function HeroCollapse({
           <div className="absolute inset-0 bg-gray-800 z-30 transition-opacity duration-700"
                style={{ opacity: firstReady ? 0 : 1, pointerEvents: 'none' }} />
           {srcs.map((src, i) => (
-            <img key={src} src={photoSrc(src, 'xl')} alt="Hero"
+            <img key={src} src={photoSrc(src, isMobile ? 'large' : 'xl')} alt="Hero"
                  fetchPriority={i === 0 ? 'high' : 'low'}
                  style={{
                    position: 'absolute', inset: 0,
@@ -1008,7 +432,7 @@ export default function HeroCollapse({
         </div>
 
         {/* ── Slide dots ── */}
-        {srcs.length > 1 && (
+        {!isMobile && srcs.length > 1 && (
           <div style={{
             position: 'absolute', bottom: '2rem', left: 0, right: 0,
             display: 'flex', justifyContent: 'center', gap: '8px', zIndex: 25,

@@ -107,6 +107,22 @@ console.log('\nWho takes a chair');
 
     check('only the guest carries a guest_list_id',
         partyAttendees(three).filter(p => p.guestListId !== null).length === 1);
+
+    // The party is answered per person on the RSVP form, the named guest included:
+    // they can decline while the rest of their household comes.
+    const primaryOut = guest(9, 'Anna Mathy', 2, [{ name: 'Greg Mathy', attending: true }], { primary_attending: false });
+    check('the named guest who declined takes no chair',
+        partyAttendees(primaryOut).map(p => p.name).join(', ') === 'Greg Mathy',
+        partyAttendees(primaryOut).map(p => p.name).join(', '));
+
+    const nobody = guest(10, 'Anna Mathy', 2, [{ name: 'Greg Mathy', attending: false }], { primary_attending: false });
+    check('a household where everyone declined takes no chairs', partyAttendees(nobody).length === 0);
+
+    const primaryUnanswered = guest(11, 'Ada Byron', 1, [], { primary_attending: null });
+    check('a named guest who has not answered still gets a chair', partyAttendees(primaryUnanswered).length === 1);
+
+    check('a named guest marked attending is seated',
+        partyAttendees(guest(12, 'Ada Byron', 1, [], { primary_attending: true })).length === 1);
 }
 
 /* ---- chairs ---- */

@@ -44,8 +44,11 @@ interface RsvpInput {
         attendingCeremony: boolean | null;
         ceremonyToast: CeremonyToast;
     }[] | null;
-    // The primary guest's own ceremony answer — party members carry theirs in
-    // `resolvedMembers` instead, alongside their party attendance.
+    // The primary guest's own answers — party members carry theirs in
+    // `resolvedMembers` instead, alongside their party attendance. `attending`
+    // above is the household's ("is anyone coming"), which is a different
+    // question now the party is asked per person.
+    primaryAttending: boolean;
     attendingCeremony: boolean | null;
     ceremonyToast: CeremonyToast;
 }
@@ -95,6 +98,9 @@ function parseInput(body: unknown): RsvpInput | string {
 
     return {
         guestName, email, phone, attending: b.attending, guestCount, dietaryJson, message, resolvedMembers,
+        // An older client sends no per-person answer for the primary guest; their
+        // household answer was their own answer back then, so it stands in.
+        primaryAttending: typeof b.primaryAttending === 'boolean' ? b.primaryAttending : b.attending,
         attendingCeremony: typeof b.attendingCeremony === 'boolean' ? b.attendingCeremony : null,
         ceremonyToast: parseToast(b.ceremonyToast),
     };
@@ -167,14 +173,19 @@ async function saveRsvp(input: RsvpInput): Promise<{ id: number; isUpdate: boole
         // `resolvedMembers` already carries each party member's ceremony answer
         // alongside their party answer (both come off the same per-person card in
         // the form), so it writes into `party_members` as one shape, same as before.
+        // The primary guest has no row in that array, so their own party answer goes
+        // in its own column — without it the seating chart would keep a chair for a
+        // guest who declined while the rest of their household came.
         await client.query(
             `UPDATE guest_list
                 SET email = $1, phone = $2, rsvp_status = $3,
                     party_members = COALESCE($4::jsonb, party_members),
+                    primary_attending = $5,
                     updated_at = NOW()
-              WHERE id = $5`,
+              WHERE id = $6`,
             [input.email, input.phone, input.attending ? 'attending' : 'declined',
              input.resolvedMembers ? JSON.stringify(input.resolvedMembers) : null,
+             input.primaryAttending,
              guest.id],
         );
 

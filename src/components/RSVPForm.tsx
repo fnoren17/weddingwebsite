@@ -66,6 +66,9 @@ type Attendance = 'yes' | 'no' | null;
 interface MemberCard {
     name: string;           // resolved display name (may be empty string for unknowns the guest must fill in)
     nameEditable: boolean;  // true when admin left this slot unnamed
+    // The party — answered per person, the primary guest included. There is no
+    // household-level "are you coming" any more: the RSVP is attending if anyone
+    // on a card is, and that is what the top-level `attending` flag is derived from.
     attendance: Attendance;
     vegetarian: boolean;
     vegan: boolean;
@@ -86,6 +89,9 @@ function buildCards(
     existingDietary: DietaryEntry[],
     hasExistingRsvp: boolean,
     primaryCeremony: { attending: boolean | null; toast: CeremonyToast },
+    // The household's saved party answer, used only to recover the primary guest's
+    // own card when re-opening an RSVP (party members carry theirs on themselves).
+    primaryAttending: boolean,
 ): MemberCard[] {
     const totalSlots = 1 + partyMembers.length;
     return Array.from({ length: totalSlots }, (_, i) => {
@@ -106,10 +112,11 @@ function buildCards(
             // (`attending`); RSVPs sent before that field existed fall back to the older
             // inference — a submitted RSVP lists exactly its attendees in
             // dietary_restrictions, and submitting requires answering everyone, so "absent
-            // from that list" means they were marked not attending.
-            // (The primary guest is covered by the "Will you be attending?" answer above.)
+            // from that list" means they were marked not attending. The primary guest has no
+            // per-member row of their own, so the same inference runs off the household's
+            // `attending` flag plus their presence in that list.
             attendance: isFirst
-                ? 'yes'
+                ? (hasExistingRsvp ? (primaryAttending && existing ? 'yes' : 'no') : null)
                 : typeof slot?.attending === 'boolean'
                     ? (slot.attending ? 'yes' : 'no')
                     : (hasExistingRsvp ? (existing ? 'yes' : 'no') : null),
@@ -162,11 +169,12 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
     const [verifying, setVerifying] = useState(false);
     const [config, setConfig] = useState<RsvpPageConfig | null>(null);
 
+    // No household-level attendance here: the party is answered per person on the
+    // cards below, exactly like the city hall ceremony.
     const [formData, setFormData] = useState({
         guestName: '',
         email: '',
         phone: '',
-        attending: 'yes',
         message: '',
     });
 
@@ -209,13 +217,12 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 setCards(buildCards(data.guest.name, data.guest.party_members || [], existingDietary, !!data.existingRsvp, {
                     attending: typeof data.existingRsvp?.attendingCeremony === 'boolean' ? data.existingRsvp.attendingCeremony : null,
                     toast: data.existingRsvp?.ceremonyToast ?? null,
-                }));
+                }, !!data.existingRsvp?.attending));
 
                 setFormData({
                     guestName: data.guest.name,
                     email: data.existingRsvp?.email || data.guest.email || '',
                     phone: data.existingRsvp?.phone || data.guest.phone || '',
-                    attending: data.existingRsvp ? (data.existingRsvp.attending ? 'yes' : 'no') : 'yes',
                     message: data.existingRsvp?.message || '',
                 });
 
@@ -231,7 +238,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
         }
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
@@ -243,33 +250,31 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // The party is answered per person, so every card needs a choice — there is no
+        // household-level "no" that covers everyone in one go any more.
+        const unanswered = cards.findIndex(c => c.attendance === null);
+        if (unanswered !== -1) {
+            const who = cards[unanswered].name.trim() || t('guestFallback', { n: unanswered + 1 });
+            setErrorMessage(t('errorMarkAttendance', { who }));
+            setStatus('error');
+            return;
+        }
         // Validate: unnamed attending guests must have a name filled in
         // Also validate: "Other" dietary requires text
-        if (formData.attending === 'yes') {
-            // Every guest must be explicitly marked attending or not attending first.
-            const unanswered = cards.findIndex(c => c.attendance === null);
-            if (unanswered !== -1) {
-                const who = cards[unanswered].name.trim() || t('guestFallback', { n: unanswered + 1 });
-                setErrorMessage(t('errorMarkAttendance', { who }));
+        for (let i = 0; i < cards.length; i++) {
+            if (cards[i].attendance === 'yes' && cards[i].nameEditable && !cards[i].name.trim()) {
+                setErrorMessage(t('errorGuestName', { n: i + 1 }));
                 setStatus('error');
                 return;
             }
-            for (let i = 0; i < cards.length; i++) {
-                if (cards[i].attendance === 'yes' && cards[i].nameEditable && !cards[i].name.trim()) {
-                    setErrorMessage(t('errorGuestName', { n: i + 1 }));
-                    setStatus('error');
-                    return;
-                }
-                if (cards[i].attendance === 'yes' && cards[i].other && !cards[i].other_text.trim()) {
-                    setErrorMessage(t('errorDietaryDescribe', { who: cards[i].name || t('guestFallback', { n: i + 1 }) }));
-                    setStatus('error');
-                    return;
-                }
+            if (cards[i].attendance === 'yes' && cards[i].other && !cards[i].other_text.trim()) {
+                setErrorMessage(t('errorDietaryDescribe', { who: cards[i].name || t('guestFallback', { n: i + 1 }) }));
+                setStatus('error');
+                return;
             }
         }
 
-        // The city hall ceremony is answered independently of the party above, so
-        // it's validated unconditionally rather than nested under `attending === 'yes'`.
+        // The city hall ceremony is answered independently of the party above.
         const unansweredCeremony = cards.findIndex(c => c.attendanceCeremony === null);
         if (unansweredCeremony !== -1) {
             const who = cards[unansweredCeremony].name.trim() || t('guestFallback', { n: unansweredCeremony + 1 });
@@ -293,8 +298,11 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
         setStatus('submitting');
         setErrorMessage('');
 
-        const attendingCards = formData.attending === 'yes' ? cards.filter(c => c.attendance === 'yes') : [];
+        const attendingCards = cards.filter(c => c.attendance === 'yes');
         const guestCount = attendingCards.length;
+        // The RSVP counts as attending when anyone on it is coming to the party. It is
+        // derived rather than asked: the per-person cards are the only answer now.
+        const partyAttending = guestCount > 0;
         // Send resolved names *and* each person's answer back so guest_list.party_members
         // stays up to date. Attendance per member is what the seating chart reads: without
         // it a declined plus-one still got a chair, coloured as if they were coming.
@@ -302,7 +310,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
         // always 'yes'/'no' by this point, never null.
         const resolvedMembers = cards.slice(1).map(c => ({
             name: c.name || null,
-            attending: formData.attending === 'yes' ? c.attendance === 'yes' : false,
+            attending: c.attendance === 'yes',
             attendingCeremony: c.attendanceCeremony === 'yes',
             ceremonyToast: c.attendanceCeremony === 'yes' ? c.ceremonyToast : null,
         }));
@@ -326,10 +334,13 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 body: JSON.stringify({
                     ...formData,
                     ...(isUpdate ? { id: existingRsvp.id } : {}),
-                    attending: formData.attending === 'yes',
+                    attending: partyAttending,
                     guestCount,
                     dietaryRestrictions,
                     resolvedMembers,
+                    // The primary guest's own party answer: `resolvedMembers` starts at
+                    // the second card, and `attending` above is the household's.
+                    primaryAttending: primaryCard.attendance === 'yes',
                     attendingCeremony: primaryCard.attendanceCeremony === 'yes',
                     ceremonyToast: primaryCard.attendanceCeremony === 'yes' ? primaryCard.ceremonyToast : null,
                 }),
@@ -345,7 +356,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
             setExistingRsvp((prev) => ({
                 ...(prev || {}),
                 id: data.id ?? prev?.id ?? null,
-                attending: formData.attending === 'yes',
+                attending: partyAttending,
                 email: formData.email,
                 phone: formData.phone,
                 message: formData.message,
@@ -370,8 +381,8 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
         const bookingUrl = config?.roomBlockUrl ?? roomBlockUrl;
         const roomMessage = (config?.roomBlockMessage?.trim()) || DEFAULT_ROOM_BLOCK_MESSAGE;
         // Receipt summary of who's attending
-        const isAttending = formData.attending === 'yes';
-        const attendees = isAttending ? cards.filter(c => c.attendance === 'yes' && c.name?.trim()) : [];
+        const attendees = cards.filter(c => c.attendance === 'yes' && c.name?.trim());
+        const isAttending = attendees.length > 0;
         const partyLabel = t('partyOf', { count: attendees.length });
         const ceremonyAttendees = cards.filter(c => c.attendanceCeremony === 'yes' && c.name?.trim());
         return (
@@ -513,13 +524,10 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
 
     const partyNames = verifiedGuest?.party_members?.map((m: PartyMember, i: number) => m.name || t('guestFallback', { n: i + 2 })).join(', ');
 
-    // Guests still needing an explicit attending / not-attending choice. Only applies
-    // when the party is coming at all — declining covers everyone in one go.
-    const unansweredCount = formData.attending === 'yes'
-        ? cards.filter(c => c.attendance === null).length
-        : 0;
-    // Unlike the party above, the ceremony has no top-level toggle to short-circuit
-    // this, so it's always counted regardless of `formData.attending`.
+    // Guests still needing an explicit attending / not-attending choice, for the
+    // party and for the ceremony. Both are per person and neither has a top-level
+    // toggle that can answer for the whole household.
+    const unansweredCount = cards.filter(c => c.attendance === null).length;
     const unansweredCeremonyCount = cards.filter(c => c.attendanceCeremony === null).length;
 
     return (
@@ -546,7 +554,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                         <p className={`text-sm mt-1 ${existingRsvp ? 'text-blue-700' : 'text-green-700'}`}>
                             {existingRsvp ? t('updateBelow') : t('completeBelow')}
                         </p>
-                        {formData.attending === 'yes' && cards.length > 1 && (
+                        {cards.length > 1 && (
                             <p className={`text-sm mt-2 font-semibold ${existingRsvp ? 'text-blue-800' : 'text-green-800'}`}>
                                 {t('markAllGuests')}
                             </p>
@@ -557,7 +565,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
 
             {/* Contact info */}
             <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
+                <div>
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 ml-1">{t('emailLabel')}</label>
                     <input
                         type="email" name="email" id="email" required
@@ -573,22 +581,119 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                         className="mt-1 appearance-none block w-full px-4 py-3 border border-gray-300 rounded-2xl shadow-sm placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-accent focus:border-accent sm:text-sm transition-shadow"
                     />
                 </div>
-                <div>
-                    <label htmlFor="attending" className="block text-sm font-medium text-gray-700 ml-1">{t('attendingLabel')}</label>
-                    <select
-                        id="attending" name="attending" required
-                        value={formData.attending} onChange={handleChange}
-                        className="mt-1 block w-full pl-4 pr-10 py-3 text-base border-gray-300 text-gray-900 focus:outline-none focus:ring-accent focus:border-accent sm:text-sm rounded-2xl transition-shadow"
-                    >
-                        <option value="yes">{t('optionYes')}</option>
-                        <option value="no">{t('optionNo')}</option>
-                    </select>
-                </div>
             </div>
 
-            {/* The city hall ceremony — a separate question from the party above, so it
-                is not nested under `formData.attending === 'yes'`: someone can join the
-                ceremony without joining the party, or the other way around. */}
+            {/* The party — answered per person, the same shape as the city hall ceremony
+                below. Ticking Attending opens that person's dietary questions. */}
+            {cards.length > 0 && (
+                <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-1">{t('partyTitle')}</h3>
+                    <p className="text-xs text-gray-500 mb-3">{t('partyIntro')}</p>
+                    <div className="space-y-3">
+                        {cards.map((card, i) => (
+                            <div
+                                key={i}
+                                className={`border rounded-2xl p-4 transition-colors ${
+                                    card.attendance === 'yes'
+                                        ? 'bg-white border-gray-200'
+                                        : card.attendance === 'no'
+                                            ? 'bg-gray-50 border-gray-100 opacity-60'
+                                            : 'bg-amber-50 border-amber-300'
+                                }`}
+                            >
+                                {/* Card header: name + attending toggle */}
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1">
+                                        {card.nameEditable ? (
+                                            <div>
+                                                <label className="block text-xs text-gray-500 mb-1">
+                                                    {t('guestNameLabel', { n: i + 1 })} <span className="text-red-500">*</span>
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={card.name}
+                                                    onChange={(e) => updateCard(i, { name: e.target.value })}
+                                                    placeholder={t('guestNamePlaceholder')}
+                                                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-accent focus:border-accent"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm font-semibold text-gray-800">{card.name || t('guestFallback', { n: i + 1 })}</p>
+                                        )}
+                                    </div>
+                                    {/* Attending / Not attending — mutually exclusive, and asked of
+                                        everyone including the primary guest. Clicking a ticked box
+                                        clears it back to unanswered. */}
+                                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4 whitespace-nowrap">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={card.attendance === 'yes'}
+                                                onChange={() => updateCard(i, { attendance: card.attendance === 'yes' ? null : 'yes' })}
+                                                className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
+                                            />
+                                            <span className="text-sm text-gray-600">{t('attending')}</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={card.attendance === 'no'}
+                                                onChange={() => updateCard(i, { attendance: card.attendance === 'no' ? null : 'no' })}
+                                                className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
+                                            />
+                                            <span className="text-sm text-gray-600">{t('notAttending')}</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Dietary checkboxes — only when attending */}
+                                {card.attendance === 'yes' && (
+                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                        <p className="text-xs text-gray-500 mb-2">{t('dietaryRestrictions')}</p>
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                            {([
+                                                { field: 'vegetarian', label: t('dietaryVegetarian') },
+                                                { field: 'vegan', label: t('dietaryVegan') },
+                                                { field: 'gluten_free', label: t('dietaryGlutenFree') },
+                                                { field: 'nut_allergy', label: t('dietaryNutAllergy') },
+                                                { field: 'other', label: t('dietaryOther') },
+                                            ] as { field: keyof Pick<MemberCard, 'vegetarian' | 'vegan' | 'gluten_free' | 'nut_allergy' | 'other'>; label: string }[]).map(({ field, label }) => (
+                                                <label key={field} className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={card[field]}
+                                                        onChange={(e) => updateCard(i, { [field]: e.target.checked })}
+                                                        className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
+                                                    />
+                                                    <span className="text-sm text-gray-700">{label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        {card.other && (
+                                            <input
+                                                type="text"
+                                                value={card.other_text}
+                                                onChange={(e) => updateCard(i, { other_text: e.target.value })}
+                                                placeholder={t('dietaryOtherPlaceholder')}
+                                                className="mt-2 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-accent focus:border-accent"
+                                            />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    {unansweredCount > 0 && (
+                        <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl p-3">
+                            {t('unansweredCount', { count: unansweredCount })}
+                        </p>
+                    )}
+                </div>
+            )}
+
+            {/* The city hall ceremony — the same shape as the party above and answered
+                independently of it: someone can join the ceremony without joining the
+                party, or the other way around. */}
             {cards.length > 0 && (
                 <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-1">{t('ceremonyTitle')}</h3>
@@ -684,114 +789,6 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 </div>
             )}
 
-            {/* Per-member cards */}
-            {formData.attending === 'yes' && cards.length > 0 && (
-                <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">{t('yourParty')}</h3>
-                    <div className="space-y-3">
-                        {cards.map((card, i) => {
-                            const isFirst = i === 0;
-                            return (
-                                <div
-                                    key={i}
-                                    className={`border rounded-2xl p-4 transition-colors ${
-                                        card.attendance === 'yes'
-                                            ? 'bg-white border-gray-200'
-                                            : card.attendance === 'no'
-                                                ? 'bg-gray-50 border-gray-100 opacity-60'
-                                                : 'bg-amber-50 border-amber-300'
-                                    }`}
-                                >
-                                    {/* Card header: name + attending toggle */}
-                                    <div className="flex items-start justify-between gap-4 mb-3">
-                                        <div className="flex-1">
-                                            {card.nameEditable ? (
-                                                <div>
-                                                    <label className="block text-xs text-gray-500 mb-1">
-                                                        {t('guestNameLabel', { n: i + 1 })} <span className="text-red-500">*</span>
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={card.name}
-                                                        onChange={(e) => updateCard(i, { name: e.target.value })}
-                                                        placeholder={t('guestNamePlaceholder')}
-                                                        className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-accent focus:border-accent"
-                                                    />
-                                                </div>
-                                            ) : (
-                                                <p className="text-sm font-semibold text-gray-800">{card.name}</p>
-                                            )}
-                                        </div>
-                                        {/* Attending / Not attending — mutually exclusive, and the
-                                            primary guest is locked on by the answer above. Clicking a
-                                            ticked box clears it back to unanswered. */}
-                                        {isFirst ? (
-                                            <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full whitespace-nowrap">{t('attending')}</span>
-                                        ) : (
-                                            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4 whitespace-nowrap">
-                                                <label className="flex items-center gap-2 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={card.attendance === 'yes'}
-                                                        onChange={() => updateCard(i, { attendance: card.attendance === 'yes' ? null : 'yes' })}
-                                                        className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
-                                                    />
-                                                    <span className="text-sm text-gray-600">{t('attending')}</span>
-                                                </label>
-                                                <label className="flex items-center gap-2 cursor-pointer">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={card.attendance === 'no'}
-                                                        onChange={() => updateCard(i, { attendance: card.attendance === 'no' ? null : 'no' })}
-                                                        className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
-                                                    />
-                                                    <span className="text-sm text-gray-600">{t('notAttending')}</span>
-                                                </label>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Dietary checkboxes — only when attending */}
-                                    {card.attendance === 'yes' && (
-                                        <div>
-                                            <p className="text-xs text-gray-500 mb-2">{t('dietaryRestrictions')}</p>
-                                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                                {([
-                                                    { field: 'vegetarian', label: t('dietaryVegetarian') },
-                                                    { field: 'vegan', label: t('dietaryVegan') },
-                                                    { field: 'gluten_free', label: t('dietaryGlutenFree') },
-                                                    { field: 'nut_allergy', label: t('dietaryNutAllergy') },
-                                                    { field: 'other', label: t('dietaryOther') },
-                                                ] as { field: keyof Pick<MemberCard, 'vegetarian' | 'vegan' | 'gluten_free' | 'nut_allergy' | 'other'>; label: string }[]).map(({ field, label }) => (
-                                                    <label key={field} className="flex items-center gap-2 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={card[field]}
-                                                            onChange={(e) => updateCard(i, { [field]: e.target.checked })}
-                                                            className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
-                                                        />
-                                                        <span className="text-sm text-gray-700">{label}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                            {card.other && (
-                                                <input
-                                                    type="text"
-                                                    value={card.other_text}
-                                                    onChange={(e) => updateCard(i, { other_text: e.target.value })}
-                                                    placeholder={t('dietaryOtherPlaceholder')}
-                                                    className="mt-2 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-accent focus:border-accent"
-                                                />
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
             {/* Message */}
             <div>
                 <label htmlFor="message" className="block text-sm font-medium text-gray-700 ml-1">
@@ -808,12 +805,6 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 <div className="rounded-2xl bg-red-50 p-4">
                     <p className="text-sm font-medium text-red-800">{errorMessage}</p>
                 </div>
-            )}
-
-            {unansweredCount > 0 && (
-                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl p-3">
-                    {t('unansweredCount', { count: unansweredCount })}
-                </p>
             )}
 
             <div className="flex gap-4">

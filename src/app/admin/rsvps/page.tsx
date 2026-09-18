@@ -61,6 +61,9 @@ interface Guest {
     invited: boolean;
     rsvp_status?: string;
     party_members?: PartyMember[];
+    // The named guest's own answer to the party — `party_members` covers the rest
+    // of the household only. null when they have not answered.
+    primary_attending?: boolean | null;
     plus_one_name?: string | null;
     address?: string;
     flag?: string | null;
@@ -1202,13 +1205,23 @@ export default function RSVPDashboard() {
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {rsvps.map((rsvp) => {
-                                        const members = Array.isArray(rsvp.dietary_restrictions)
-                                            ? rsvp.dietary_restrictions.slice(1)
-                                            : [];
+                                        // `dietary_restrictions` is the attendee list, and the named
+                                        // guest is no longer always at the top of it: the party is
+                                        // answered per person, so they can decline while the rest of
+                                        // their household comes. Find them by name, falling back to
+                                        // the first entry for RSVPs that predate that.
+                                        const dietary = Array.isArray(rsvp.dietary_restrictions) ? rsvp.dietary_restrictions : [];
+                                        const guestRow = guests.find(
+                                            (g) => g.guest_name.toLowerCase() === rsvp.guest_name.toLowerCase(),
+                                        );
+                                        const primaryAttending = guestRow?.primary_attending ?? rsvp.attending;
+                                        const namedIndex = dietary.findIndex(
+                                            (d) => (d?.name || '').trim().toLowerCase() === rsvp.guest_name.trim().toLowerCase(),
+                                        );
+                                        const primaryIndex = namedIndex >= 0 ? namedIndex : (primaryAttending && dietary.length ? 0 : -1);
+                                        const primaryDietary = primaryIndex >= 0 ? dietary[primaryIndex] : null;
+                                        const members = dietary.filter((_, i) => i !== primaryIndex);
                                         const hasParty = members.length > 0;
-                                        const primaryDietary = Array.isArray(rsvp.dietary_restrictions)
-                                            ? rsvp.dietary_restrictions[0]
-                                            : null;
                                         const dietaryFlags = (entry: DietaryEntry | null) => {
                                             if (!entry) return '-';
                                             const flags = [
@@ -1223,9 +1236,7 @@ export default function RSVPDashboard() {
                                         // The City Hall answer for each party member lives on
                                         // guest_list.party_members, not on the dietary array `members`
                                         // is built from above — cross-reference by name to find it.
-                                        const partyMembers = guests.find(
-                                            (g) => g.guest_name.toLowerCase() === rsvp.guest_name.toLowerCase(),
-                                        )?.party_members || [];
+                                        const partyMembers = guestRow?.party_members || [];
                                         const ceremonyBadge = (
                                             attending: boolean | null | undefined,
                                             toast: 'alcohol' | 'non_alcohol' | null | undefined,
@@ -1255,8 +1266,8 @@ export default function RSVPDashboard() {
                                                         {rsvp.phone && <div className="text-xs text-gray-400 truncate">{rsvp.phone}</div>}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${rsvp.attending ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                            {rsvp.attending ? 'Attending' : 'Declined'}
+                                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${primaryAttending ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                            {primaryAttending ? 'Attending' : 'Declined'}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1583,11 +1594,17 @@ export default function RSVPDashboard() {
                                         const isLikelyNotComing = guest.rsvp_status === 'likely_not_coming';
                                         const members = guest.party_members || [];
                                         const hasParty = members.length > 0;
-                                        // Find this guest's RSVP dietary data for member details
+                                        // Find this guest's RSVP dietary data for member details.
+                                        // That array lists the attendees only, so it lines up with
+                                        // `party_members` by name, never by position: a member who
+                                        // declined — or the named guest, who can decline while the
+                                        // rest of the household comes — is simply not in it.
                                         const rsvp = rsvps.find(r => r.guest_name.toLowerCase() === guest.guest_name.toLowerCase());
-                                        const memberDietary = Array.isArray(rsvp?.dietary_restrictions)
-                                            ? rsvp.dietary_restrictions.slice(1)
-                                            : [];
+                                        const dietary = Array.isArray(rsvp?.dietary_restrictions) ? rsvp.dietary_restrictions : [];
+                                        const dietaryFor = (name: string | null | undefined) => {
+                                            const key = (name || '').trim().toLowerCase();
+                                            return key ? dietary.find(d => (d?.name || '').trim().toLowerCase() === key) : undefined;
+                                        };
                                         const dietaryFlags = (entry: DietaryEntry | null | undefined) => {
                                             if (!entry) return null;
                                             const flags = [
@@ -1694,8 +1711,10 @@ export default function RSVPDashboard() {
                                         </tr>
                                         {/* Party member sub-rows */}
                                         {members.map((member, mi) => {
-                                            const mDietary = memberDietary[mi];
-                                            const mAttending = !!mDietary;
+                                            const mDietary = dietaryFor(member.name);
+                                            // Their own answer when they gave one; otherwise being in
+                                            // the attendee list is the answer.
+                                            const mAttending = member.attending ?? !!mDietary;
                                             const flags = dietaryFlags(mDietary);
                                             return (
                                                 <tr key={`${guest.id}-m${mi}`} className="align-top bg-gray-50">

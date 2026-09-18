@@ -45,6 +45,12 @@ ALTER TABLE guest_list ADD COLUMN IF NOT EXISTS party_members JSONB;
 -- the two must stay in step so a fresh database is not a column behind.
 ALTER TABLE guest_list ADD COLUMN IF NOT EXISTS flag VARCHAR(20);
 ALTER TABLE guest_list ADD COLUMN IF NOT EXISTS relationship VARCHAR(255);
+-- The primary guest's own answer to the party, which `party_members` cannot
+-- hold: that array covers the companions only. Needed since the RSVP form asked
+-- the party question per person — the guest named on the invitation can decline
+-- while the rest of their household comes, and the seating chart has to know it.
+-- NULL means unanswered, and an unanswered guest still gets a chair.
+ALTER TABLE guest_list ADD COLUMN IF NOT EXISTS primary_attending BOOLEAN;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 -- The city hall ceremony is a separate yes/no from the party (`attending` above),
 -- since guests can attend one without the other. The toast preference only means
@@ -227,6 +233,46 @@ UPDATE guest_list g
      GROUP BY g2.id
   ) sub
  WHERE g.id = sub.id;
+
+-- ---------------------------------------------------------------------------
+-- Backfill: the primary guest's own answer to the party.
+--
+-- Same recovery as the members' one above, for the one person that array never
+-- covered. Before the party became a per-person question the guest named on the
+-- invitation was whoever answered, so their answer is the household's:
+--   household declined -> not attending
+--   household accepted -> attending exactly when their name is in the attendee
+--                         list (`rsvps.dietary_restrictions`), which is how an
+--                         RSVP has always recorded who is coming
+--   no RSVP at all     -> left NULL; nobody has answered
+--
+-- Idempotent: only rows still NULL are touched, and the rows it fills are no
+-- longer NULL, so a second boot changes nothing.
+-- ---------------------------------------------------------------------------
+UPDATE guest_list g
+   SET primary_attending = CASE
+         WHEN r.attending = false THEN false
+         ELSE EXISTS (
+                SELECT 1
+                  FROM jsonb_array_elements(r.dietary_restrictions) d
+                 WHERE LOWER(TRIM(d->>'name')) = LOWER(TRIM(g.guest_name))
+              )
+       END,
+       updated_at = NOW()
+  FROM (
+    SELECT DISTINCT ON (LOWER(TRIM(guest_name)))
+           LOWER(TRIM(guest_name)) AS name_key, attending, dietary_restrictions
+      FROM rsvps
+     ORDER BY LOWER(TRIM(guest_name)), created_at DESC
+  ) r
+ WHERE r.name_key = LOWER(TRIM(g.guest_name))
+   AND g.primary_attending IS NULL
+   AND (
+         r.attending = false
+         OR (r.attending = true
+             AND jsonb_typeof(r.dietary_restrictions) = 'array'
+             AND jsonb_array_length(r.dietary_restrictions) > 0)
+       );
 
 -- Seating chart tables
 CREATE TABLE IF NOT EXISTS floor_plans (

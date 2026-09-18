@@ -690,6 +690,7 @@ export default function SeatingPage() {
         guest_name: g.guest_name,
         plus_one_name: g.plus_one_name ?? null,
         party_members: g.party_members ?? [],
+        primary_attending: g.primary_attending ?? null,
         party_size: g.party_size ?? 1,
         side: g.side ?? null,
         rsvp_status: g.rsvp_status ?? null,

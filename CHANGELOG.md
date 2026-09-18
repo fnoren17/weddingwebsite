@@ -11,6 +11,20 @@ All notable changes to this project are documented here, newest at the top.
 > renders those three as coloured badges. Bump the patch on every deploy, the minor when
 > asked. Entries predating this convention carry a date but no time.
 
+## v0.9.90 — [Unreleased] the party is answered per person too (`main`, 2026-09-17 21:41)
+
+The RSVP asked the party as one household question — a "Will you be attending the party?" dropdown that answered for everyone at once — while the City Hall ceremony below it was already answered per person. So a party of three where one person could not make the dinner had no way to say so, and the guest named on the invitation could never decline while the rest of their household came.
+
+### Changed
+- **The party is now a per-person Attending / Not attending choice**, one card per member, exactly like the City Hall ceremony: ticking Attending opens that person's dietary questions. The "Will you be attending the party?" dropdown is gone — the cards are the answer, and the RSVP counts as attending when anyone on it is.
+- **The party section sits above the City Hall section**, which is the order of the day.
+- The RSVP's own attending/declined flag and headcount are derived from the cards rather than asked, so `rsvps.attending`, `number_of_guests` and the attendee list can no longer disagree with each other.
+- Admin → RSVPs no longer assumes the named guest is the first attendee: the primary row and the party sub-rows are matched to the attendee list **by name**, and the primary row's badge is that guest's own answer, not their household's. The guest-list tab matches each member's dietary flags by name too — positionally, a member who declined shifted everyone below them onto the wrong row.
+
+### Added
+- `guest_list.primary_attending` — the named guest's own answer to the party, which `party_members` never covered (that array is the companions only). The seating chart reads it, so a guest who declined while their household came no longer keeps a chair. `database/init.sql` adds the column and backfills it from each household's latest RSVP the same way the party members' answers were backfilled: the attendee list in `rsvps.dietary_restrictions` is who came. Idempotent, and `npm run check:seating` covers the new rule (82 assertions).
+- `primaryAttending` on the RSVP API's body. An older client that omits it falls back to the household answer, which is what that answer meant before this change.
+
 ## v0.9.89 — [Unreleased] the City Hall answer shows up in admin (`main`, 2026-09-15 20:56)
 
 RSVPs have carried a separate City Hall ceremony answer and toast choice (added earlier) since before this admin panel knew about either — `rsvps.attending_ceremony`/`ceremony_toast` and each `party_members` entry's `attendingCeremony`/`ceremonyToast` were written on every submission but nowhere displayed.

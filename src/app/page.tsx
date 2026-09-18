@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { getSiteConfig } from '@/lib/config';
 import { ADMIN_COOKIE, verifyAdminToken } from '@/lib/auth';
@@ -91,26 +90,6 @@ export default async function Home() {
             : <>{config.weddingDate}<br className="md:hidden" /><span className="hidden md:inline"> • </span>{config.weddingLocation}</>
           }
         </p>
-        {!isBasicMode && (
-          <div
-            data-hero-role="buttons"
-            className="flex flex-col sm:flex-row gap-4 px-4"
-            style={{ animation: 'page-enter 700ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 800ms both' }}
-          >
-            <Link
-              href="/rsvp"
-              className="px-8 py-3 bg-accent text-white hover:bg-accent-dark transition-colors rounded-full uppercase tracking-widest text-sm font-bold shadow-lg hover:shadow-xl"
-            >
-              {t('rsvpNow')}
-            </Link>
-            <Link
-              href="/schedule"
-              className="px-8 py-3 bg-transparent border-2 border-white text-white hover:bg-white hover:text-gray-900 transition-colors rounded-full uppercase tracking-widest text-sm font-bold shadow-lg hover:shadow-xl"
-            >
-              {t('viewSchedule')}
-            </Link>
-          </div>
-        )}
         {!isBasicMode && (
           <div
             data-hero-role="scroll"

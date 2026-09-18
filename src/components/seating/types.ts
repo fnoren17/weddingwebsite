@@ -52,6 +52,11 @@ export interface GuestListEntry {
   // `attending` is the person's own RSVP answer (null when they have not answered).
   party_members?: { name: string | null; attending?: boolean | null }[];
   /**
+   * The named guest's own answer to the party — `party_members` covers the
+   * companions only. Null when they have not answered, which still takes a chair.
+   */
+  primary_attending?: boolean | null;
+  /**
    * How many people this household actually answered for, from the RSVP form —
    * null when they have not submitted one. `party_size` is what they were
    * *invited* for, which is a different number the moment someone answers for

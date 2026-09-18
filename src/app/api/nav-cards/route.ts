@@ -21,10 +21,10 @@ interface NavCard {
 const ALL_PAGES: NavCard[] = [
   { href: '/our-story',     slug: 'our-story',     label: 'Timeline',      eyebrow: 'Our Journey', subtitle: '', image: null },
   { href: '/wedding-party', slug: 'wedding-party', label: 'Wedding Party', eyebrow: 'The Crew',    subtitle: '', image: null },
-  { href: '/schedule',      slug: 'schedule',      label: 'Schedule',      eyebrow: 'The Day',     subtitle: '', image: null },
+  { href: '/schedule',      slug: 'schedule',      label: 'Hålltider',      eyebrow: 'Vad dagen har att erbjuda',     subtitle: '', image: null },
   { href: '/photos',        slug: 'photos',        label: 'Photos',        eyebrow: 'Gallery',     subtitle: '', image: null },
   { href: '/registry',      slug: 'registry',      label: 'Registry',      eyebrow: 'Gifts',       subtitle: '', image: null },
-  { href: '/rsvp',          slug: 'rsvp',          label: 'RSVP',          eyebrow: 'Join Us',     subtitle: '', image: null },
+  { href: '/rsvp',          slug: 'rsvp',          label: 'OSA',          eyebrow: 'Anmäl dig här',     subtitle: '', image: null },
 ];
 
 

@@ -26,6 +26,9 @@ export default async function SchedulePage() {
     const bgColor = config.pageBgColors?.schedule || '#ffffff';
     const shuttleText = (config.scheduleShuttleText || '').trim();
     const dressCode = (config.scheduleDressCode || '').trim();
+    // Same "has real content" rule as the FAQ section itself on the home page —
+    // a draft entry with no question or answer yet doesn't count.
+    const hasFaqs = (config.faqs || []).some((f) => f.question?.trim() || f.answer?.trim());
 
     return (
         <div style={{ backgroundColor: bgColor }} className="py-16">
@@ -45,12 +48,14 @@ export default async function SchedulePage() {
                         >
                             {t('rsvpNow')}
                         </Link>
-                        <Link
-                            href="/#faqs"
-                            className="px-8 py-3 bg-transparent border-2 border-accent text-accent hover:bg-accent hover:text-white transition-colors rounded-full uppercase tracking-widest text-sm font-bold shadow-lg hover:shadow-xl"
-                        >
-                            {t('viewFaqs')}
-                        </Link>
+                        {hasFaqs && (
+                            <Link
+                                href="/#faqs"
+                                className="px-8 py-3 bg-transparent border-2 border-accent text-accent hover:bg-accent hover:text-white transition-colors rounded-full uppercase tracking-widest text-sm font-bold shadow-lg hover:shadow-xl"
+                            >
+                                {t('viewFaqs')}
+                            </Link>
+                        )}
                     </div>
                 </FadeIn>
 
