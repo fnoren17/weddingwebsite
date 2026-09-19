@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState, useEffect, useRef, CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { eio } from './HeroCollapse';
 
 // Height the fixed nav island occupies (12px top offset + 68px tall). Content
 // scrolled to sits below this, so scrollspy detection starts here too — the
@@ -40,6 +41,11 @@ export default function Navigation({
     const [registryEnabled, setReg] = useState(false);
     const [hiddenPaths, setHidden]  = useState<Set<string>>(new Set());
     const [scrolled, setScrolled]   = useState(false);
+    // Continuous 0→1 "island-ness" while on the home page, driven frame-by-frame
+    // by the hero's own scroll progress (see the 'hero-progress' listener below)
+    // instead of a boolean flip — so the nav's narrowing tracks the image's
+    // collapse exactly rather than snapping in after it via a CSS transition.
+    const [heroT, setHeroT] = useState(0);
     const [pillWidth, setPillWidth] = useState(0);
     const logoRef  = useRef<HTMLDivElement>(null);
     const linksRef = useRef<HTMLDivElement>(null);
@@ -47,8 +53,10 @@ export default function Navigation({
     const [aboutInView, setAboutInView] = useState(false);
     const t = useTranslations('Navigation');
 
-    // All pages: full banner at top, island when scrolled.
-    const island = scrolled;
+    // On the home page the hero drives the factor continuously; everywhere else
+    // it's a plain threshold flip (there's no image to stay in sync with there).
+    const factor = pathname === '/' ? heroT : (scrolled ? 1 : 0);
+    const island = factor > 0.5;
 
     useEffect(() => {
         fetch('/api/admin/site-config')
@@ -71,18 +79,15 @@ export default function Navigation({
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
 
-    // Sync with hero collapse animation on the home page.
-    // The hero hijacks wheel events so scrollY never changes during the animation —
-    // these custom events let the nav transition in perfect sync with the hero.
+    // Sync with the hero collapse animation on the home page: HeroCollapse
+    // dispatches raw scroll progress (0→1) every frame it updates itself, and
+    // applying the same easing curve here (`eio`) keeps the nav's narrowing
+    // pixel-in-step with the image instead of lagging a fixed-duration
+    // transition behind it.
     useEffect(() => {
-        const onCollapsing = () => setScrolled(true);
-        const onExpanded   = () => setScrolled(false);
-        window.addEventListener('hero-collapsing', onCollapsing);
-        window.addEventListener('hero-expanded',   onExpanded);
-        return () => {
-            window.removeEventListener('hero-collapsing', onCollapsing);
-            window.removeEventListener('hero-expanded',   onExpanded);
-        };
+        const onProgress = (e: Event) => setHeroT(eio((e as CustomEvent<number>).detail));
+        window.addEventListener('hero-progress', onProgress);
+        return () => window.removeEventListener('hero-progress', onProgress);
     }, []);
 
     // On every route change: re-check actual scroll position.
@@ -190,8 +195,15 @@ export default function Navigation({
         mq.addEventListener('change', update);
         return () => mq.removeEventListener('change', update);
     }, []);
-    const islandL = island ? (isMobileNav ? `${INSET}px` : `calc(50% - ${halfPill}px)`) : '0';
-    const islandR = island ? (isMobileNav ? `${INSET}px` : `calc(50% - ${halfPill}px)`) : '0';
+    // `calc((50% - Xpx) * factor)` keeps the endpoint's live "50%" (so it still
+    // re-centers correctly on resize) while scaling the whole inset by our own
+    // continuous factor instead of jumping straight to it — at factor 0 this is
+    // 0 (edge-to-edge), at factor 1 it's exactly the old island inset.
+    const islandL = isMobileNav ? `calc(${INSET}px * ${factor})` : `calc((50% - ${halfPill}px) * ${factor})`;
+    const islandR = islandL;
+    const topPx    = 12 * factor;
+    const heightPx = 80 - 12 * factor; // top + height stays 80 at every factor — only the top edge floats in
+    const paddingX = 24 + 4 * factor;
 
     const barStyle: CSSProperties = {
         position: 'fixed',
@@ -199,25 +211,32 @@ export default function Navigation({
         // The banner sits above the nav in the normal flow; a fixed bar knows
         // nothing about flow, so it has to be told — otherwise the banner is
         // drawn straight over the top of the nav island.
-        top:   island ? 'calc(12px + var(--demo-banner-h, 0px))' : 'var(--demo-banner-h, 0px)',
-        left:  island ? islandL : '0',
-        right: island ? islandR : '0',
+        top:   `calc(${topPx}px + var(--demo-banner-h, 0px))`,
+        left:  islandL,
+        right: islandR,
         zIndex: 50,
         display:        'flex',
         alignItems:     'center',
         justifyContent: 'space-between',
         gap:     '32px',
-        padding: island ? '0 28px' : '0 24px',
-        height:  island ? '68px'   : '80px',
+        padding: `0 ${paddingX}px`,
+        height:  `${heightPx}px`,
         background:           'rgba(255,255,255,0.88)',
         backdropFilter:       'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        borderRadius: island ? '20px' : '0',
+        borderRadius: `${20 * factor}px`,
         boxShadow: island
             ? '0 8px 40px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.8) inset'
             : '0 1px 3px rgba(0,0,0,0.06)',
         border: island ? '1px solid rgba(255,255,255,0.65)' : 'none',
-        transition: 'top 500ms ease, left 500ms ease, right 500ms ease, height 500ms ease, border-radius 500ms ease, box-shadow 500ms ease, border 500ms ease, padding 500ms ease',
+        // The geometry above is already updated every frame in lockstep with the
+        // hero's own scroll-driven animation on the home page — a CSS transition
+        // on it there would just add a lag behind that sync. Off the home page
+        // (a plain scrolled-past-60px flip) it's a discrete jump, so it keeps its
+        // animated transition. box-shadow/border still flip in both cases.
+        transition: pathname === '/'
+            ? 'box-shadow 300ms ease, border 300ms ease'
+            : 'top 500ms ease, left 500ms ease, right 500ms ease, height 500ms ease, border-radius 500ms ease, box-shadow 500ms ease, border 500ms ease, padding 500ms ease',
     };
 
     const linkColor   = '#111827';
@@ -225,10 +244,11 @@ export default function Navigation({
     const underlineBg = 'var(--accent)';
     const hoverBg     = 'rgba(212,175,55,0.3)';
 
-    // Mobile drawer: sits just below the bar
-    // top + height. The mobile drawer hangs off this, so it inherits the banner
-    // offset through the same variable rather than being adjusted separately.
-    const barBottom = island ? 12 + 68 : 80;
+    // Mobile drawer: sits just below the bar — top + height, which is 80 at
+    // every factor (see heightPx above). The drawer hangs off this, so it
+    // inherits the banner offset through the same variable rather than being
+    // adjusted separately.
+    const barBottom = topPx + heightPx;
     const drawerTop = `calc(${barBottom + 4}px + var(--demo-banner-h, 0px))`;
 
     return (
@@ -339,8 +359,8 @@ export default function Navigation({
                 className="fixed md:hidden overflow-hidden"
                 style={{
                     top:       drawerTop,
-                    left:      island ? islandL : '0',
-                    right:     island ? islandR : '0',
+                    left:      islandL,
+                    right:     islandR,
                     zIndex:    49,
                     maxHeight: isOpen ? '500px' : '0px',
                     opacity:   isOpen ? 1 : 0,

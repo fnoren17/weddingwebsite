@@ -21,15 +21,12 @@ const SCATTER: { x: number; y: number; rot: number; w: number }[] = [
   { x:  34, y:  14, rot: -7, w: 19 },
 ];
 
-// Section height in vh (100vh hero + 100vh "already scrolled past" scroll room)
-const SECTION_VH    = 200;
-// How long the finished collage is held on screen before sliding to #about
-const ABOUT_PAUSE_MS = 500;
 // Scroll offset so the About section's rounded top clears the fixed nav island
 const ABOUT_OFFSET   = 88;
 
-/** Ease in-out cubic */
-function eio(t: number) {
+/** Ease in-out cubic — also used by Navigation to keep the nav island's
+ *  narrowing in step with the hero image's own collapse curve. */
+export function eio(t: number) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
@@ -107,20 +104,6 @@ export default function HeroCollapse({
   const textRef      = useRef<HTMLDivElement>(null);
   const scatterRefs  = useRef<(HTMLDivElement | null)[]>([]);
   const timerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Scroll-linked collapse progress — a pure function of scroll position, not a
-  // timed commit. 0 = full screen, 1 = fully collapsed.
-  const progressRef = useRef(0);
-  const collapsingRef = useRef(false); // has 'hero-collapsing' fired for the current crossing?
-
-  // Pending "pause, then slide to #about" timer (nav About click while on home)
-  const aboutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelAboutTimer = () => {
-    if (aboutTimerRef.current) {
-      clearTimeout(aboutTimerRef.current);
-      aboutTimerRef.current = null;
-    }
-  };
 
   // In-flight smooth scroll back to the hero (nav Home click while on home)
   const homeScrollRef = useRef<(() => void) | null>(null);
@@ -237,7 +220,7 @@ export default function HeroCollapse({
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  useEffect(() => () => { cancelAboutTimer(); cancelHomeScroll(); }, []);
+  useEffect(() => () => { cancelHomeScroll(); }, []);
 
   // ── Scroll-linked collapse ─────────────────────────────────────────────────
   // Progress is derived straight from scroll position — no locked, timed
@@ -247,31 +230,20 @@ export default function HeroCollapse({
   // mechanism on mobile and desktop — only the tuning constants in
   // applyProgress differ.
   useEffect(() => {
-    const sectionScrollRoom = () => {
-      // The "collapsed" scroll position = section start + SECTION_VH - 100vh
-      const section = sectionRef.current;
-      if (!section) return 0;
-      return section.offsetTop + section.offsetHeight - window.innerHeight;
-    };
-
-    // The collapse plays out over the first viewport-height of scroll inside
-    // the section — exactly the range the sticky hero stays pinned for.
+    // The collapse plays out over the section's own height (one viewport) —
+    // it scrolls away naturally rather than staying pinned, so the page moves
+    // and the collapse animates in the same motion.
     const update = () => {
       const section = sectionRef.current;
       if (!section) return;
       const range = window.innerHeight;
       const raw = (window.scrollY - section.offsetTop) / range;
       const p = Math.max(0, Math.min(1, raw));
-      progressRef.current = p;
       applyProgress(p);
-
-      if (p > 0 && !collapsingRef.current) {
-        collapsingRef.current = true;
-        window.dispatchEvent(new CustomEvent('hero-collapsing'));
-      } else if (p === 0 && collapsingRef.current) {
-        collapsingRef.current = false;
-        window.dispatchEvent(new CustomEvent('hero-expanded'));
-      }
+      // Raw linear progress, not eased — Navigation applies the same easing
+      // (`eio`, exported above) itself so the nav island narrows in the same
+      // curve as the image, not a step behind it.
+      window.dispatchEvent(new CustomEvent<number>('hero-progress', { detail: p }));
     };
 
     let raf = 0;
@@ -288,27 +260,17 @@ export default function HeroCollapse({
     // nav. A normal smooth scroll to the top; the scroll listener above
     // re-expands the hero as it passes back through the collapse range.
     const onReset = () => {
-      cancelAboutTimer();
       cancelHomeScroll();
       if (window.scrollY <= 1) return;
       homeScrollRef.current = smoothScrollTo(0, () => { homeScrollRef.current = null; });
     };
 
-    // "About" clicked in the nav while already on the home page: scroll down
-    // to the collapsed card, hold it for a beat, then glide to #about.
+    // "About" clicked in the nav while already on the home page: one smooth
+    // scroll straight to #about — the hero collapses and slides away as part
+    // of that same scroll, rather than a separate held/paused step.
     const onToAbout = () => {
-      cancelAboutTimer();
-      if (progressRef.current >= 1) {
-        scrollToAbout('smooth');
-        return;
-      }
-      homeScrollRef.current = smoothScrollTo(sectionScrollRoom(), () => {
-        homeScrollRef.current = null;
-        aboutTimerRef.current = setTimeout(() => {
-          aboutTimerRef.current = null;
-          scrollToAbout('smooth');
-        }, ABOUT_PAUSE_MS);
-      });
+      cancelHomeScroll();
+      scrollToAbout('smooth');
     };
 
     window.addEventListener('hero-reset', onReset);
@@ -334,128 +296,128 @@ export default function HeroCollapse({
     );
   }
 
-  // ── Snap-animated collapse: full-bleed slideshow → condensed card ────────
-  // Section is SECTION_VH tall: 100vh = hero + 100vh scroll room (jumped past on collapse).
+  // ── Scroll-away collapse: full-bleed slideshow → condensed card ──────────
+  // No sticky pin: the section is exactly one viewport tall and scrolls away
+  // like any other content, while applyProgress shrinks/fades it in step with
+  // that same scroll — the collapse and the page's own movement happen together.
   // Same mechanism on mobile and desktop; only the shrink amounts in
   // applyProgress differ, and the scatter/dots flourishes are desktop-only.
   return (
-    <div ref={sectionRef} style={{ height: `${SECTION_VH}vh` }}>
-      <div
-        style={{
-          position: 'sticky',
-          top: 0,
-          height: '100svh',
-          overflow: 'hidden',
-          backgroundColor: bgColor,
-        }}
-      >
-        {/* ── Top gradient — ensures white nav text is readable ── */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0,
-          height: '160px', zIndex: 18, pointerEvents: 'none',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 100%)',
-        }} />
+    <div
+      ref={sectionRef}
+      style={{
+        position: 'relative',
+        height: '100svh',
+        overflow: 'hidden',
+        backgroundColor: bgColor,
+      }}
+    >
+      {/* ── Top gradient — ensures white nav text is readable ── */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0,
+        height: '160px', zIndex: 18, pointerEvents: 'none',
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.45) 0%, transparent 100%)',
+      }} />
 
-        {/* ── Scattered photos — each frame crossfades at currentSlide+1+i offset ── */}
-        {!isMobile && srcs.length > 1 && SCATTER.map((s, i) => (
-          <div
-            key={i}
-            ref={el => { scatterRefs.current[i] = el; }}
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top:  '50%',
-              marginLeft: `-${s.w / 2}vw`,
-              marginTop:  `-${s.w * (4 / 3) / 2}vh`,
-              width:  `${s.w}vw`,
-              aspectRatio: '3 / 4',
-              overflow: 'hidden',
-              borderRadius: '16px',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-              border: '4px solid white',
-              opacity: 0,
-              transform: `translate(${s.x < 0 ? -120 : 120}vw, ${s.y}vh) rotate(0deg)`,
-              transition: 'none',
-              zIndex: 15,
-            }}
-          >
-            {srcs.map((src, j) => (
-              <img key={src} src={photoSrc(src, 'medium')} alt=""
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
-                         opacity: j === (scatterIdxs[i] ?? 0) % srcs.length ? 1 : 0,
-                         transition: 'opacity 1200ms cubic-bezier(0.4,0,0.2,1)' }} />
-            ))}
-          </div>
-        ))}
-
-        {/* ── Main hero image (starts full-screen, condenses to a card) ── */}
+      {/* ── Scattered photos — each frame crossfades at currentSlide+1+i offset ── */}
+      {!isMobile && srcs.length > 1 && SCATTER.map((s, i) => (
         <div
-          ref={mainImgRef}
+          key={i}
+          ref={el => { scatterRefs.current[i] = el; }}
           style={{
             position: 'absolute',
-            left: '50%', top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '100vw', height: '100svh',
+            left: '50%',
+            top:  '50%',
+            marginLeft: `-${s.w / 2}vw`,
+            marginTop:  `-${s.w * (4 / 3) / 2}vh`,
+            width:  `${s.w}vw`,
+            aspectRatio: '3 / 4',
             overflow: 'hidden',
-            borderRadius: '0px',
+            borderRadius: '16px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            border: '4px solid white',
+            opacity: 0,
+            transform: `translate(${s.x < 0 ? -120 : 120}vw, ${s.y}vh) rotate(0deg)`,
             transition: 'none',
-            zIndex: 10,
+            zIndex: 15,
           }}
         >
-          <div className="absolute inset-0 bg-gray-800 z-30 transition-opacity duration-700"
-               style={{ opacity: firstReady ? 0 : 1, pointerEvents: 'none' }} />
-          {srcs.map((src, i) => (
-            <img key={src} src={photoSrc(src, isMobile ? 'large' : 'xl')} alt="Hero"
-                 fetchPriority={i === 0 ? 'high' : 'low'}
-                 style={{
-                   position: 'absolute', inset: 0,
-                   width: '100%', height: '100%', objectFit: 'cover',
-                   opacity: i === currentSlide ? 1 : 0,
-                   transition: 'opacity 1200ms cubic-bezier(0.4,0,0.2,1)',
-                   zIndex: i === currentSlide ? 1 : 0,
-                 }} />
+          {srcs.map((src, j) => (
+            <img key={src} src={photoSrc(src, 'medium')} alt=""
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+                       opacity: j === (scatterIdxs[i] ?? 0) % srcs.length ? 1 : 0,
+                       transition: 'opacity 1200ms cubic-bezier(0.4,0,0.2,1)' }} />
           ))}
-          <div className="hero-overlay absolute inset-0 z-20"
-               style={{ background: 'rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
         </div>
+      ))}
 
-        {/* ── Hero text ── */}
-        <div
-          ref={textRef}
-          style={{
-            position: 'absolute', inset: 0, zIndex: 20,
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          {children}
-        </div>
-
-        {/* ── Slide dots ── */}
-        {!isMobile && srcs.length > 1 && (
-          <div style={{
-            position: 'absolute', bottom: '2rem', left: 0, right: 0,
-            display: 'flex', justifyContent: 'center', gap: '8px', zIndex: 25,
-          }}>
-            {srcs.map((_, i) => (
-              <button key={i} onClick={() => {
-                        const prev = currentSlideRef.current;
-                        if (i === prev) return;
-                        currentSlideRef.current = i;
-                        setCurrentSlide(i);
-                        setScatterIdxs(idxs => idxs.map(idx => idx === i ? prev : idx));
-                      }}
-                      aria-label={`Slide ${i + 1}`}
-                      style={{
-                        width: i === currentSlide ? '24px' : '10px', height: '10px',
-                        borderRadius: '9999px', border: 'none', cursor: 'pointer', padding: 0,
-                        background: i === currentSlide ? 'white' : 'rgba(255,255,255,0.5)',
-                        transition: 'all 300ms',
-                      }} />
-            ))}
-          </div>
-        )}
+      {/* ── Main hero image (starts full-screen, condenses to a card) ── */}
+      <div
+        ref={mainImgRef}
+        style={{
+          position: 'absolute',
+          left: '50%', top: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '100vw', height: '100svh',
+          overflow: 'hidden',
+          borderRadius: '0px',
+          transition: 'none',
+          zIndex: 10,
+        }}
+      >
+        <div className="absolute inset-0 bg-gray-800 z-30 transition-opacity duration-700"
+             style={{ opacity: firstReady ? 0 : 1, pointerEvents: 'none' }} />
+        {srcs.map((src, i) => (
+          <img key={src} src={photoSrc(src, isMobile ? 'large' : 'xl')} alt="Hero"
+               fetchPriority={i === 0 ? 'high' : 'low'}
+               style={{
+                 position: 'absolute', inset: 0,
+                 width: '100%', height: '100%', objectFit: 'cover',
+                 opacity: i === currentSlide ? 1 : 0,
+                 transition: 'opacity 1200ms cubic-bezier(0.4,0,0.2,1)',
+                 zIndex: i === currentSlide ? 1 : 0,
+               }} />
+        ))}
+        <div className="hero-overlay absolute inset-0 z-20"
+             style={{ background: 'rgba(0,0,0,0.4)', pointerEvents: 'none' }} />
       </div>
+
+      {/* ── Hero text ── */}
+      <div
+        ref={textRef}
+        style={{
+          position: 'absolute', inset: 0, zIndex: 20,
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        {children}
+      </div>
+
+      {/* ── Slide dots ── */}
+      {!isMobile && srcs.length > 1 && (
+        <div style={{
+          position: 'absolute', bottom: '2rem', left: 0, right: 0,
+          display: 'flex', justifyContent: 'center', gap: '8px', zIndex: 25,
+        }}>
+          {srcs.map((_, i) => (
+            <button key={i} onClick={() => {
+                      const prev = currentSlideRef.current;
+                      if (i === prev) return;
+                      currentSlideRef.current = i;
+                      setCurrentSlide(i);
+                      setScatterIdxs(idxs => idxs.map(idx => idx === i ? prev : idx));
+                    }}
+                    aria-label={`Slide ${i + 1}`}
+                    style={{
+                      width: i === currentSlide ? '24px' : '10px', height: '10px',
+                      borderRadius: '9999px', border: 'none', cursor: 'pointer', padding: 0,
+                      background: i === currentSlide ? 'white' : 'rgba(255,255,255,0.5)',
+                      transition: 'all 300ms',
+                    }} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

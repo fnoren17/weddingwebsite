@@ -4,20 +4,11 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { DEFAULT_ROOM_BLOCK_MESSAGE } from '@/lib/roomBlock';
 
-// The toast at the city hall ceremony — meaningless unless attending it.
-type CeremonyToast = 'alcohol' | 'non_alcohol' | null;
-
 interface PartyMember {
     name: string | null;
     // Whether this person is coming. Recorded per person by the RSVP form —
     // a party of three where one declines seats two, not three.
     attending?: boolean | null;
-    // The city hall ceremony is a separate question from the party above —
-    // someone can attend one without the other. Written into `party_members` by
-    // `resolvedMembers` on submit (see RSVPForm's handleSubmit), so the keys here
-    // must match that shape exactly, camelCase included.
-    attendingCeremony?: boolean | null;
-    ceremonyToast?: CeremonyToast;
 }
 
 interface DietaryEntry {
@@ -46,8 +37,6 @@ interface ExistingRsvp {
     phone?: string | null;
     dietaryRestrictions?: DietaryEntry[] | null;
     message?: string | null;
-    attendingCeremony?: boolean | null;
-    ceremonyToast?: CeremonyToast;
 }
 
 interface RsvpPageConfig {
@@ -76,11 +65,6 @@ interface MemberCard {
     nut_allergy: boolean;
     other: boolean;
     other_text: string;
-    // The city hall ceremony — independent of `attendance` (the party) above, and
-    // unanswered (null) for the primary guest too: unlike the party, there is no
-    // top-level toggle that locks it for them.
-    attendanceCeremony: Attendance;
-    ceremonyToast: CeremonyToast;
 }
 
 function buildCards(
@@ -88,7 +72,6 @@ function buildCards(
     partyMembers: PartyMember[],
     existingDietary: DietaryEntry[],
     hasExistingRsvp: boolean,
-    primaryCeremony: { attending: boolean | null; toast: CeremonyToast },
     // The household's saved party answer, used only to recover the primary guest's
     // own card when re-opening an RSVP (party members carry theirs on themselves).
     primaryAttending: boolean,
@@ -126,10 +109,6 @@ function buildCards(
             nut_allergy: existing?.nut_allergy ?? false,
             other: existing?.other ?? false,
             other_text: existing?.other_text ?? '',
-            attendanceCeremony: isFirst
-                ? (typeof primaryCeremony.attending === 'boolean' ? (primaryCeremony.attending ? 'yes' : 'no') : null)
-                : (typeof slot?.attendingCeremony === 'boolean' ? (slot.attendingCeremony ? 'yes' : 'no') : null),
-            ceremonyToast: isFirst ? (primaryCeremony.toast ?? null) : (slot?.ceremonyToast ?? null),
         };
     });
 }
@@ -170,7 +149,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
     const [config, setConfig] = useState<RsvpPageConfig | null>(null);
 
     // No household-level attendance here: the party is answered per person on the
-    // cards below, exactly like the city hall ceremony.
+    // cards below.
     const [formData, setFormData] = useState({
         guestName: '',
         email: '',
@@ -214,10 +193,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                     ? data.existingRsvp.dietaryRestrictions
                     : [];
 
-                setCards(buildCards(data.guest.name, data.guest.party_members || [], existingDietary, !!data.existingRsvp, {
-                    attending: typeof data.existingRsvp?.attendingCeremony === 'boolean' ? data.existingRsvp.attendingCeremony : null,
-                    toast: data.existingRsvp?.ceremonyToast ?? null,
-                }, !!data.existingRsvp?.attending));
+                setCards(buildCards(data.guest.name, data.guest.party_members || [], existingDietary, !!data.existingRsvp, !!data.existingRsvp?.attending));
 
                 setFormData({
                     guestName: data.guest.name,
@@ -274,27 +250,6 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
             }
         }
 
-        // The city hall ceremony is answered independently of the party above.
-        const unansweredCeremony = cards.findIndex(c => c.attendanceCeremony === null);
-        if (unansweredCeremony !== -1) {
-            const who = cards[unansweredCeremony].name.trim() || t('guestFallback', { n: unansweredCeremony + 1 });
-            setErrorMessage(t('errorMarkCeremonyAttendance', { who }));
-            setStatus('error');
-            return;
-        }
-        for (let i = 0; i < cards.length; i++) {
-            if (cards[i].attendanceCeremony === 'yes' && cards[i].nameEditable && !cards[i].name.trim()) {
-                setErrorMessage(t('errorGuestName', { n: i + 1 }));
-                setStatus('error');
-                return;
-            }
-            if (cards[i].attendanceCeremony === 'yes' && !cards[i].ceremonyToast) {
-                setErrorMessage(t('errorToastChoice', { who: cards[i].name || t('guestFallback', { n: i + 1 }) }));
-                setStatus('error');
-                return;
-            }
-        }
-
         setStatus('submitting');
         setErrorMessage('');
 
@@ -306,13 +261,9 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
         // Send resolved names *and* each person's answer back so guest_list.party_members
         // stays up to date. Attendance per member is what the seating chart reads: without
         // it a declined plus-one still got a chair, coloured as if they were coming.
-        // Each member's ceremony answer rides along here too — validated above, so it's
-        // always 'yes'/'no' by this point, never null.
         const resolvedMembers = cards.slice(1).map(c => ({
             name: c.name || null,
             attending: c.attendance === 'yes',
-            attendingCeremony: c.attendanceCeremony === 'yes',
-            ceremonyToast: c.attendanceCeremony === 'yes' ? c.ceremonyToast : null,
         }));
         const primaryCard = cards[0];
         const dietaryRestrictions = attendingCards.map(c => ({
@@ -341,8 +292,6 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                     // The primary guest's own party answer: `resolvedMembers` starts at
                     // the second card, and `attending` above is the household's.
                     primaryAttending: primaryCard.attendance === 'yes',
-                    attendingCeremony: primaryCard.attendanceCeremony === 'yes',
-                    ceremonyToast: primaryCard.attendanceCeremony === 'yes' ? primaryCard.ceremonyToast : null,
                 }),
             });
 
@@ -384,7 +333,6 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
         const attendees = cards.filter(c => c.attendance === 'yes' && c.name?.trim());
         const isAttending = attendees.length > 0;
         const partyLabel = t('partyOf', { count: attendees.length });
-        const ceremonyAttendees = cards.filter(c => c.attendanceCeremony === 'yes' && c.name?.trim());
         return (
             <div className="text-center py-12 bg-gray-50 rounded-2xl border border-gray-100 p-8">
                 <div className="confirm-check">
@@ -427,12 +375,6 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                             {t('willMissYou')}
                         </p>
                     )}
-
-                    <div className="mt-4 pt-3 border-t border-dashed border-gray-200 text-sm text-gray-600">
-                        {ceremonyAttendees.length > 0
-                            ? t('ceremonySummaryAttending', { names: ceremonyAttendees.map(c => c.name).join(', ') })
-                            : t('ceremonySummaryNotAttending')}
-                    </div>
                 </div>
 
                 <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center items-center">
@@ -524,11 +466,9 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
 
     const partyNames = verifiedGuest?.party_members?.map((m: PartyMember, i: number) => m.name || t('guestFallback', { n: i + 2 })).join(', ');
 
-    // Guests still needing an explicit attending / not-attending choice, for the
-    // party and for the ceremony. Both are per person and neither has a top-level
-    // toggle that can answer for the whole household.
+    // Guests still needing an explicit attending / not-attending choice. This is
+    // per person and has no top-level toggle that can answer for the whole household.
     const unansweredCount = cards.filter(c => c.attendance === null).length;
-    const unansweredCeremonyCount = cards.filter(c => c.attendanceCeremony === null).length;
 
     return (
         <form onSubmit={handleSubmit} className="space-y-6 bg-white p-8 rounded-3xl shadow-xl border-t-4 border-accent">
@@ -583,8 +523,8 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 </div>
             </div>
 
-            {/* The party — answered per person, the same shape as the city hall ceremony
-                below. Ticking Attending opens that person's dietary questions. */}
+            {/* The party — answered per person. Ticking Attending opens that person's
+                dietary questions. */}
             {cards.length > 0 && (
                 <div>
                     <h3 className="text-sm font-medium text-gray-700 mb-1">{t('partyTitle')}</h3>
@@ -691,104 +631,6 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 </div>
             )}
 
-            {/* The city hall ceremony — the same shape as the party above and answered
-                independently of it: someone can join the ceremony without joining the
-                party, or the other way around. */}
-            {cards.length > 0 && (
-                <div>
-                    <h3 className="text-sm font-medium text-gray-700 mb-1">{t('ceremonyTitle')}</h3>
-                    <p className="text-xs text-gray-500 mb-3">{t('ceremonyIntro')}</p>
-                    <div className="space-y-3">
-                        {cards.map((card, i) => (
-                            <div
-                                key={i}
-                                className={`border rounded-2xl p-4 transition-colors ${
-                                    card.attendanceCeremony === 'yes'
-                                        ? 'bg-white border-gray-200'
-                                        : card.attendanceCeremony === 'no'
-                                            ? 'bg-gray-50 border-gray-100 opacity-60'
-                                            : 'bg-amber-50 border-amber-300'
-                                }`}
-                            >
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1">
-                                        {card.nameEditable ? (
-                                            <input
-                                                type="text"
-                                                value={card.name}
-                                                onChange={(e) => updateCard(i, { name: e.target.value })}
-                                                placeholder={t('guestNamePlaceholder')}
-                                                className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-accent focus:border-accent"
-                                            />
-                                        ) : (
-                                            <p className="text-sm font-semibold text-gray-800">{card.name || t('guestFallback', { n: i + 1 })}</p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-4 whitespace-nowrap">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={card.attendanceCeremony === 'yes'}
-                                                onChange={() => updateCard(i, {
-                                                    attendanceCeremony: card.attendanceCeremony === 'yes' ? null : 'yes',
-                                                })}
-                                                className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
-                                            />
-                                            <span className="text-sm text-gray-600">{t('attending')}</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={card.attendanceCeremony === 'no'}
-                                                onChange={() => updateCard(i, {
-                                                    attendanceCeremony: card.attendanceCeremony === 'no' ? null : 'no',
-                                                    ceremonyToast: card.attendanceCeremony === 'no' ? card.ceremonyToast : null,
-                                                })}
-                                                className="h-4 w-4 rounded border-gray-300 text-accent focus:ring-accent"
-                                            />
-                                            <span className="text-sm text-gray-600">{t('notAttending')}</span>
-                                        </label>
-                                    </div>
-                                </div>
-
-                                {card.attendanceCeremony === 'yes' && (
-                                    <div className="mt-3 pt-3 border-t border-gray-100">
-                                        <p className="text-xs text-gray-500 mb-2">{t('toastLabel')}</p>
-                                        <div className="flex gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name={`toast-${i}`}
-                                                    checked={card.ceremonyToast === 'alcohol'}
-                                                    onChange={() => updateCard(i, { ceremonyToast: 'alcohol' })}
-                                                    className="h-4 w-4 border-gray-300 text-accent focus:ring-accent"
-                                                />
-                                                <span className="text-sm text-gray-700">{t('toastAlcohol')}</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    name={`toast-${i}`}
-                                                    checked={card.ceremonyToast === 'non_alcohol'}
-                                                    onChange={() => updateCard(i, { ceremonyToast: 'non_alcohol' })}
-                                                    className="h-4 w-4 border-gray-300 text-accent focus:ring-accent"
-                                                />
-                                                <span className="text-sm text-gray-700">{t('toastNonAlcohol')}</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                    {unansweredCeremonyCount > 0 && (
-                        <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl p-3">
-                            {t('unansweredCeremonyCount', { count: unansweredCeremonyCount })}
-                        </p>
-                    )}
-                </div>
-            )}
-
             {/* Message */}
             <div>
                 <label htmlFor="message" className="block text-sm font-medium text-gray-700 ml-1">
@@ -817,7 +659,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 </button>
                 <button
                     type="submit"
-                    disabled={status === 'submitting' || unansweredCount > 0 || unansweredCeremonyCount > 0}
+                    disabled={status === 'submitting' || unansweredCount > 0}
                     className="flex-1 flex justify-center py-3 px-6 border border-transparent rounded-full shadow-md text-base font-medium text-white bg-accent hover:bg-accent-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent disabled:opacity-50 transition-all transform hover:-translate-y-0.5"
                 >
                     {status === 'submitting'
