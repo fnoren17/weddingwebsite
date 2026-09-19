@@ -37,7 +37,14 @@ export default async function Home() {
   const slideshowImages = config.heroSlideshowImages || [];
   const slideshowInterval = config.heroSlideshowInterval || 5000;
 
-  const heroImages = slideshowEnabled ? slideshowImages : (config.homeHero ? [config.homeHero] : []);
+  // Leave non-slideshow mode as an empty `images` array — HeroCollapse's own
+  // fallback (`fallbackImage`/`fallbackImageMobile`, below) builds the single
+  // hero image from `homeHero`. Wrapping `homeHero` into `images` here used to
+  // make `images.length` nonzero even outside slideshow mode, which tricked
+  // HeroCollapse into treating it as a slideshow and silently dropped the
+  // `homeHeroMobile` crop (it only substitutes the mobile image when
+  // `images.length === 0`, i.e. in fallback mode).
+  const heroImages = slideshowEnabled ? slideshowImages : [];
   // A question with no text yet is a draft, not content.
   const faqs = (config.faqs || []).filter((f) => f.question?.trim() || f.answer?.trim());
 

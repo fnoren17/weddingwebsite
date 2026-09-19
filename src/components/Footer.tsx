@@ -31,12 +31,15 @@ export default function Footer({
 
     return (
         <footer className="bg-white relative min-h-[300px]">
+            {/* bg-bottom, not bg-center: the footer is a short, wide strip next to
+                much taller source photos, so a centered crop clips the bottom-anchored
+                branch decoration off both variants. Anchoring to the bottom keeps it. */}
             <div
-                className="hidden md:block absolute inset-0 bg-cover bg-center bg-no-repeat"
+                className="hidden md:block absolute inset-0 bg-cover bg-bottom bg-no-repeat"
                 style={{ backgroundImage: `url('${imageUrl}')` }}
             />
             <div
-                className="md:hidden absolute inset-0 bg-cover bg-center bg-no-repeat"
+                className="md:hidden absolute inset-0 bg-cover bg-bottom bg-no-repeat"
                 style={{ backgroundImage: `url('${mobileImageUrl}')` }}
             />
             <div className="relative z-10 max-w-7xl mx-auto pt-24 pb-12 px-4 sm:px-6 md:flex md:items-start md:justify-between lg:px-8">
