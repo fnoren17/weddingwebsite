@@ -62,13 +62,16 @@ function parseInput(body: unknown): RsvpInput | string {
     if (!body || typeof body !== 'object') return 'Invalid request body';
     const b = body as Record<string, unknown>;
     const guestName = typeof b.guestName === 'string' ? b.guestName.trim() : '';
+    // Not collected on the form — guests are people the couple already knows
+    // how to reach. Carried through only when the admin already had one on
+    // file for this guest, so both stay optional here.
     const email = typeof b.email === 'string' ? b.email.trim() : '';
     const phone = typeof b.phone === 'string' ? b.phone.trim() : '';
-    if (!guestName || !email || !phone || typeof b.attending !== 'boolean') {
+    if (!guestName || typeof b.attending !== 'boolean') {
         return 'Missing required fields';
     }
     if (guestName.length > 255 || email.length > 255 || phone.length > 50) return 'A field is too long';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'That email address does not look right';
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'That email address does not look right';
 
     const rawCount = Number(b.guestCount);
     const guestCount = Number.isInteger(rawCount) && rawCount >= 0 ? rawCount : (b.attending ? 1 : 0);
@@ -216,20 +219,24 @@ async function sendEmails(input: RsvpInput) {
         });
 
         const status = input.attending ? 'Attending' : 'Not Attending';
-        await transporter.sendMail({
-            from: `"${couple.replace(/"/g, '')}" <${process.env.SMTP_USER}>`,
-            to: input.email,
-            subject: 'We received your RSVP!',
-            text: `Hi ${input.guestName},\n\nThank you so much for RSVPing to our wedding. We have confirmed your response: ${status}.\n\nWe can't wait to celebrate with you!\n\nBest,\n${couple}`,
-            html: `<h1>RSVP Confirmation</h1><p>Hi ${escapeHtml(input.guestName)},</p><p>Thank you so much for RSVPing to our wedding. We have confirmed your response: <strong>${status}</strong>.</p><p>Best,<br>${escapeHtml(couple)}</p>`,
-        });
+        // Guests aren't asked for an email — this only fires when the admin
+        // already had one on file for them.
+        if (input.email) {
+            await transporter.sendMail({
+                from: `"${couple.replace(/"/g, '')}" <${process.env.SMTP_USER}>`,
+                to: input.email,
+                subject: 'We received your RSVP!',
+                text: `Hi ${input.guestName},\n\nThank you so much for RSVPing to our wedding. We have confirmed your response: ${status}.\n\nWe can't wait to celebrate with you!\n\nBest,\n${couple}`,
+                html: `<h1>RSVP Confirmation</h1><p>Hi ${escapeHtml(input.guestName)},</p><p>Thank you so much for RSVPing to our wedding. We have confirmed your response: <strong>${status}</strong>.</p><p>Best,<br>${escapeHtml(couple)}</p>`,
+            });
+        }
 
         if (process.env.NOTIFICATION_EMAIL) {
             await transporter.sendMail({
                 from: `"Wedding Bot" <${process.env.SMTP_USER}>`,
                 to: process.env.NOTIFICATION_EMAIL,
                 subject: `New RSVP from ${input.guestName}`,
-                text: `Name: ${input.guestName}\nAttending: ${input.attending ? 'Yes' : 'No'}\nGuests: ${input.attending ? input.guestCount : 0}\nEmail: ${input.email}\nPhone: ${input.phone}\nMessage: ${input.message ?? ''}`,
+                text: `Name: ${input.guestName}\nAttending: ${input.attending ? 'Yes' : 'No'}\nGuests: ${input.attending ? input.guestCount : 0}\nEmail: ${input.email || 'not provided'}\nPhone: ${input.phone || 'not provided'}\nMessage: ${input.message ?? ''}`,
             });
         }
     } catch (emailError) {

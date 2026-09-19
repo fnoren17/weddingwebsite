@@ -1259,10 +1259,10 @@ export default function RSVPDashboard() {
                                         return (
                                             <React.Fragment key={rsvp.id}>
                                                 {/* Primary guest row */}
-                                                <tr className="group hover:bg-gray-50 relative">
+                                                <tr className="group hover:bg-gray-50 relative border-l-2 border-transparent">
                                                     <td className="px-6 py-4 whitespace-nowrap overflow-hidden">
                                                         <div className="text-sm font-medium text-gray-900 truncate">{rsvp.guest_name}</div>
-                                                        <div className="text-xs text-gray-400 truncate">{rsvp.email}</div>
+                                                        {rsvp.email && <div className="text-xs text-gray-400 truncate">{rsvp.email}</div>}
                                                         {rsvp.phone && <div className="text-xs text-gray-400 truncate">{rsvp.phone}</div>}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1297,27 +1297,28 @@ export default function RSVPDashboard() {
                                                         </div>
                                                     </td>
                                                 </tr>
-                                                {/* Party member sub-rows */}
+                                                {/* Same-party rows — same weight as the row above them.
+                                                    They share a household (no separate email/phone/date
+                                                    on file, hence the dashes), not a rank. */}
                                                 {members.map((member, mi) => {
                                                     const matchedMember = partyMembers.find(
                                                         (pm) => (pm.name || '').trim().toLowerCase() === (member.name || '').trim().toLowerCase(),
                                                     );
                                                     return (
-                                                        <tr key={`${rsvp.id}-m${mi}`} className="bg-gray-50/60">
-                                                            <td className="pl-10 pr-6 py-1.5 whitespace-nowrap border-l-2 border-gray-200">
-                                                                <span className="text-gray-300 mr-1.5 text-xs">└</span>
-                                                                <span className="text-sm text-gray-500 italic">{member.name || 'Unknown'}</span>
+                                                        <tr key={`${rsvp.id}-m${mi}`} className="bg-gray-50/40 border-l-2 border-accent-light">
+                                                            <td className="px-6 py-4 whitespace-nowrap overflow-hidden">
+                                                                <div className="text-sm font-medium text-gray-900 truncate">{member.name || 'Unknown'}</div>
                                                             </td>
-                                                            <td className="px-6 py-1.5 whitespace-nowrap">
-                                                                <span className="px-2 inline-flex text-xs leading-5 font-medium rounded-full bg-gray-100 text-gray-500">Attending</span>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Attending</span>
                                                             </td>
-                                                            <td className="px-6 py-1.5 whitespace-nowrap">
+                                                            <td className="px-6 py-4 whitespace-nowrap">
                                                                 {ceremonyBadge(matchedMember?.attendingCeremony, matchedMember?.ceremonyToast)}
                                                             </td>
-                                                            <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
-                                                            <td className="px-6 py-1.5 text-xs text-gray-400">{dietaryFlags(member)}</td>
-                                                            <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
-                                                            <td className="px-6 py-1.5 text-xs text-gray-300">—</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-300">—</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-500">{dietaryFlags(member)}</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-300">—</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-300">—</td>
                                                         </tr>
                                                     );
                                                 })}
@@ -1618,7 +1619,7 @@ export default function RSVPDashboard() {
                                         };
                                         return (
                                         <React.Fragment key={guest.id}>
-                                        <tr className={`align-top bg-white hover:bg-gray-50 ${isLikelyNotComing ? '!bg-red-50' : ''}`}>
+                                        <tr className={`align-top bg-white hover:bg-gray-50 border-l-2 border-transparent ${isLikelyNotComing ? '!bg-red-50' : ''}`}>
                                             <td data-col="select" className={`${H('select')} px-2 sm:px-4 lg:px-6 py-4`}>
                                                 <input
                                                     type="checkbox"
@@ -1709,7 +1710,9 @@ export default function RSVPDashboard() {
                                                 </div>
                                             </td>
                                         </tr>
-                                        {/* Party member sub-rows */}
+                                        {/* Same-party rows — full-height rows like the one above them,
+                                            not a demoted sub-list. The dashes are a real data gap (no
+                                            separate contact/address/etc. on file for them), not rank. */}
                                         {members.map((member, mi) => {
                                             const mDietary = dietaryFor(member.name);
                                             // Their own answer when they gave one; otherwise being in
@@ -1717,33 +1720,30 @@ export default function RSVPDashboard() {
                                             const mAttending = member.attending ?? !!mDietary;
                                             const flags = dietaryFlags(mDietary);
                                             return (
-                                                <tr key={`${guest.id}-m${mi}`} className="align-top bg-gray-50">
-                                                    <td data-col="select" className={`${H('select')} px-2 sm:px-4 lg:px-6 py-1.5`} />
-                                                    <td data-col="name" className="w-full max-w-0 px-2 sm:px-4 lg:px-6 py-1.5 border-l-2 border-gray-200 overflow-hidden">
-                                                        <div className="flex items-center gap-1 min-w-0">
-                                                            <span className="text-gray-300 text-xs shrink-0">└</span>
-                                                            <span className="text-sm text-gray-500 italic truncate" title={member.name || `Unknown Guest ${mi + 2}`}>
-                                                                {member.name || `Unknown Guest ${mi + 2}`}
-                                                            </span>
+                                                <tr key={`${guest.id}-m${mi}`} className="align-top bg-gray-50/40 border-l-2 border-accent-light">
+                                                    <td data-col="select" className={`${H('select')} px-2 sm:px-4 lg:px-6 py-4`} />
+                                                    <td data-col="name" className="w-full max-w-0 px-2 sm:px-4 lg:px-6 py-4 overflow-hidden">
+                                                        <div className="text-sm font-semibold text-gray-900 truncate" title={member.name || `Unknown Guest ${mi + 2}`}>
+                                                            {member.name || `Unknown Guest ${mi + 2}`}
                                                         </div>
                                                     </td>
-                                                    <td data-col="contact" className={`${H('contact')} px-2 sm:px-4 lg:px-6 py-1.5 text-xs text-gray-300`}>—</td>
-                                                    <td data-col="relation" className={`${H('relation')} px-2 sm:px-4 lg:px-6 py-1.5 text-xs text-gray-300`}>—</td>
-                                                    <td data-col="party" className="px-2 sm:px-4 lg:px-6 py-1.5 text-xs text-gray-300">—</td>
-                                                    <td data-col="invited" className="px-2 sm:px-4 lg:px-6 py-1.5 text-xs text-gray-300">—</td>
-                                                    <td data-col="rsvp" className="px-2 sm:px-4 lg:px-6 py-1.5">
+                                                    <td data-col="contact" className={`${H('contact')} px-2 sm:px-4 lg:px-6 py-4 text-sm text-gray-300`}>—</td>
+                                                    <td data-col="relation" className={`${H('relation')} px-2 sm:px-4 lg:px-6 py-4 text-sm text-gray-300`}>—</td>
+                                                    <td data-col="party" className="px-2 sm:px-4 lg:px-6 py-4 text-sm text-gray-300">—</td>
+                                                    <td data-col="invited" className="px-2 sm:px-4 lg:px-6 py-4 text-sm text-gray-300">—</td>
+                                                    <td data-col="rsvp" className="px-2 sm:px-4 lg:px-6 py-4">
                                                         {mAttending ? (
-                                                            <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500">Attending</span>
+                                                            <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded-full bg-green-100 text-green-800">Attending</span>
                                                         ) : (
-                                                            <span className="text-xs text-gray-300">—</span>
+                                                            <span className="text-sm text-gray-400">No Response</span>
                                                         )}
                                                     </td>
-                                                    <td data-col="notes" className={`${H('notes')} px-2 sm:px-4 lg:px-6 py-1.5 text-xs text-gray-400 max-w-[220px] truncate`} title={flags || ''}>
-                                                        {flags || '—'}
+                                                    <td data-col="notes" className={`${H('notes')} px-2 sm:px-4 lg:px-6 py-4 text-sm text-gray-500 max-w-[220px] truncate`} title={flags || ''}>
+                                                        {flags || '-'}
                                                     </td>
-                                                    <td data-col="address" className={`${H('address')} px-2 sm:px-4 lg:px-6 py-1.5 text-xs text-gray-300`}>—</td>
-                                                    <td data-col="donated" className={`${H('donated')} px-2 sm:px-4 lg:px-6 py-1.5 text-xs text-gray-300`}>—</td>
-                                                    <td data-col="actions" className="px-2 sm:px-4 lg:px-6 py-1.5" />
+                                                    <td data-col="address" className={`${H('address')} px-2 sm:px-4 lg:px-6 py-4 text-sm text-gray-300`}>—</td>
+                                                    <td data-col="donated" className={`${H('donated')} px-2 sm:px-4 lg:px-6 py-4 text-sm text-gray-300`}>—</td>
+                                                    <td data-col="actions" className="px-2 sm:px-4 lg:px-6 py-4" />
                                                 </tr>
                                             );
                                         })}

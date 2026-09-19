@@ -12,7 +12,7 @@
     "openMenu": "Öppna huvudmenyn"
   },
   "Footer": {
-    "tagline": "Vi kan inte vänta på att fira med er!"
+    "tagline": "Vi ser fram emot att fira med er!"
   },
   "CountdownClock": {
     "days": "Dagar",
@@ -127,13 +127,13 @@
   },
   "RSVP": {
     "title": "OSA",
-    "introCantWait": "Vi kan inte vänta på att fira med er!",
+    "introCantWait": "Vi ser fram emot att fira med er!",
     "pleaseLetUsKnowSimple": "Meddela oss gärna om ni kan komma.",
     "pleaseLetUsKnowByDeadline": "Meddela oss gärna om ni kan komma senast {deadline}",
     "daysAway": "{count, plural, one {, bara # dag kvar!} other {, bara # dagar kvar!}}",
     "todaySuffix": " — det är idag!",
     "closedSuffix": " (anmälningstiden har nu gått ut).",
-    "troubleRsvping": "Krångel? Maila oss på <emailLink>{email}</emailLink>"
+    "troubleRsvping": "Krångel? Dra iväg ett mess eller maila på <emailLink>{email}</emailLink>"
   },
   "RSVPForm": {
     "welcome": "Välkommen!",
@@ -145,14 +145,13 @@
     "errorGuestNotFound": "Gästen hittades inte på listan.",
     "errorVerifying": "Fel vid verifiering av gäst. Försök igen.",
     "greeting": "{returning, select, true {Välkommen tillbaka} other {Välkommen}}, {name}{hasParty, select, true { och sällskap} other {}}!",
-    "partyMemberNote": "Du tillhör {name}s sällskap — den här OSA:n gäller alla nedan.",
+    "partyMemberNote": "Du och {name} OSA:r tillsammans — det gäller hela sällskapet nedan.",
     "updateBelow": "Du kan uppdatera din OSA nedan.",
     "completeBelow": "Fyll i din OSA nedan.",
     "markAllGuests": "Markera alla gäster som deltar eller inte deltar — du behöver välja ett alternativ för varje person innan du kan skicka in din OSA.",
-    "emailLabel": "E-post *",
-    "phoneLabel": "Telefon *",
     "partyTitle": "Festen",
-    "partyIntro": "Ange vem i sällskapet som kommer på festen.",
+    "partyIntro": "{multiple, select, true {Ange vilka i sällskapet som kommer på festen.} other {Ange vem i sällskapet som kommer på festen.}}",
+    "ceremonyNote": "På grund av regler i Stadshuset kan bara närmaste familjen följa med in till vigseln. Om man vill så får man stå utanför och möta oss när vi kommer ut! Inget OSA behövs till det just nu, vi löser det mer avslappnat närmare dagen.",
     "guestNameLabel": "Namn på gäst {n}",
     "guestNamePlaceholder": "Ange gästens namn",
     "attending": "Deltar",

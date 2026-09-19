@@ -503,32 +503,20 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 </div>
             </div>
 
-            {/* Contact info */}
-            <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-2">
-                <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 ml-1">{t('emailLabel')}</label>
-                    <input
-                        type="email" name="email" id="email" required
-                        value={formData.email} onChange={handleChange}
-                        className="mt-1 appearance-none block w-full px-4 py-3 border border-gray-300 rounded-2xl shadow-sm placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-accent focus:border-accent sm:text-sm transition-shadow"
-                    />
-                </div>
-                <div>
-                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700 ml-1">{t('phoneLabel')}</label>
-                    <input
-                        type="tel" name="phone" id="phone" required
-                        value={formData.phone} onChange={handleChange}
-                        className="mt-1 appearance-none block w-full px-4 py-3 border border-gray-300 rounded-2xl shadow-sm placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-accent focus:border-accent sm:text-sm transition-shadow"
-                    />
-                </div>
-            </div>
+            {/* No email/phone fields here on purpose — guests are people the couple
+                already knows how to reach, so the form doesn't ask for contact info.
+                `formData.email`/`.phone` still exist below and go out with the
+                submission: if the admin already has an address on file for this
+                guest (`data.guest.email`/`.phone`, prefilled in the effect above),
+                it rides along silently, but nothing here asks the guest to type one. */}
 
             {/* The party — answered per person. Ticking Attending opens that person's
                 dietary questions. */}
             {cards.length > 0 && (
                 <div>
+                    <p className="text-xs text-gray-500 mb-3">{t('ceremonyNote')}</p>
                     <h3 className="text-sm font-medium text-gray-700 mb-1">{t('partyTitle')}</h3>
-                    <p className="text-xs text-gray-500 mb-3">{t('partyIntro')}</p>
+                    <p className="text-xs text-gray-500 mb-3">{t('partyIntro', { multiple: cards.length > 1 ? 'true' : 'false' })}</p>
                     <div className="space-y-3">
                         {cards.map((card, i) => (
                             <div
