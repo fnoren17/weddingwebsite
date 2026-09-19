@@ -12,7 +12,8 @@
     "openMenu": "Öppna huvudmenyn"
   },
   "Footer": {
-    "tagline": "Vi ser fram emot att fira med er!"
+    "tagline": "Vi ser fram emot att fira med er!",
+    "creditPrefix": "Byggd på en öppen källkodsmall av"
   },
   "CountdownClock": {
     "days": "Dagar",

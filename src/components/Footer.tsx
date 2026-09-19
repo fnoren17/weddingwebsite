@@ -50,6 +50,19 @@ export default function Footer({
                     <p className="text-center text-base text-white font-serif">
                         &copy; {year}{couple ? ` ${couple}.` : ''} {t('tagline')}
                     </p>
+                    {/* Required Notice under LICENSE.md: credit to the template's
+                        original author must travel with any copy of this site. */}
+                    <p className="mt-3 text-center text-xs text-white/60 font-sans">
+                        {t('creditPrefix')}{' '}
+                        <a
+                            href="https://github.com/Soccerbeats/weddingwebsite"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[var(--accent-light)] hover:text-[var(--accent)] underline underline-offset-2 transition-colors"
+                        >
+                            Austin Stanfield
+                        </a>
+                    </p>
                 </div>
             </div>
         </footer>
