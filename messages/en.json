@@ -12,8 +12,7 @@
     "openMenu": "Open main menu"
   },
   "Footer": {
-    "tagline": "We can't wait to celebrate with you!",
-    "creditPrefix": "Built on an open-source template by"
+    "tagline": "We can't wait to celebrate with you!"
   },
   "CountdownClock": {
     "days": "Days",

@@ -51,9 +51,11 @@ export default function Footer({
                         &copy; {year}{couple ? ` ${couple}.` : ''} {t('tagline')}
                     </p>
                     {/* Required Notice under LICENSE.md: credit to the template's
-                        original author must travel with any copy of this site. */}
+                        original author must travel with any copy of this site.
+                        Always English, regardless of site locale, to avoid a
+                        translated credit reading like a mistranslation. */}
                     <p className="mt-3 text-center text-xs text-white/60 font-sans">
-                        {t('creditPrefix')}{' '}
+                        Built on an open-source template by{' '}
                         <a
                             href="https://github.com/Soccerbeats/weddingwebsite"
                             target="_blank"
