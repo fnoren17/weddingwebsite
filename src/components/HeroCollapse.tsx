@@ -6,6 +6,8 @@ import { photoSrc } from '@/lib/photoSrc';
 interface HeroCollapseProps {
   images: string[];
   fallbackImage?: string;
+  /** Art-directed portrait crop for the single fallback image (not the slideshow). */
+  fallbackImageMobile?: string;
   interval?: number;
   bgColor?: string;
   children?: React.ReactNode;
@@ -80,11 +82,16 @@ function smoothScrollTo(top: number, onArrive: () => void): () => void {
 export default function HeroCollapse({
   images,
   fallbackImage,
+  fallbackImageMobile,
   bgColor = '#ffffff',
   children,
   interval = 5000,
 }: HeroCollapseProps) {
   const srcs = images.length > 0 ? images : (fallbackImage ? [fallbackImage] : []);
+  // Only the single fallback image (no slideshow) gets a distinct mobile crop —
+  // the scatter thumbnails are desktop-only already, and slideshow images have
+  // no per-slide mobile pairing (see the Footer's mobile variant for that pattern).
+  const mobileSrc = images.length === 0 ? fallbackImageMobile : undefined;
 
   const [currentSlide, setCurrentSlide] = useState(0);
   const [firstReady,   setFirstReady]   = useState(false);
@@ -128,7 +135,7 @@ export default function HeroCollapse({
     if (srcs.length === 0) return;
     let cancelled = false;
     const first = new window.Image();
-    first.src = photoSrc(srcs[0], isMobile ? 'large' : 'xl');
+    first.src = photoSrc(isMobile && mobileSrc ? mobileSrc : srcs[0], isMobile ? 'large' : 'xl');
     first.decode()
       .then(() => { if (!cancelled) setFirstReady(true); })
       .catch(() => { if (!cancelled) setFirstReady(true); });
@@ -139,7 +146,7 @@ export default function HeroCollapse({
     });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [srcs.join(','), isMobile]);
+  }, [srcs.join(','), isMobile, mobileSrc]);
 
   // ── Slideshow timer ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -368,7 +375,7 @@ export default function HeroCollapse({
         <div className="absolute inset-0 bg-gray-800 z-30 transition-opacity duration-700"
              style={{ opacity: firstReady ? 0 : 1, pointerEvents: 'none' }} />
         {srcs.map((src, i) => (
-          <img key={src} src={photoSrc(src, isMobile ? 'large' : 'xl')} alt="Hero"
+          <img key={src} src={photoSrc(isMobile && mobileSrc && i === 0 ? mobileSrc : src, isMobile ? 'large' : 'xl')} alt="Hero"
                fetchPriority={i === 0 ? 'high' : 'low'}
                style={{
                  position: 'absolute', inset: 0,

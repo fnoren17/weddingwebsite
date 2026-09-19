@@ -35,7 +35,7 @@ interface Photo {
 
 interface SortablePhotoProps {
     photo: Photo;
-    onSetHero: (type: 'homeHero' | 'aboutHero' | 'footerHeroImage' | 'weddingLogo' | 'venuePhoto', filename: string) => void;
+    onSetHero: (type: 'homeHero' | 'homeHeroMobile' | 'aboutHero' | 'footerHeroImage' | 'footerHeroImageMobile' | 'weddingLogo' | 'venuePhoto', filename: string) => void;
     onDelete: (id: number) => void;
     onToggleHeart: (id: number, hearted: boolean) => void;
     onEdit: (photo: Photo) => void;
@@ -122,6 +122,12 @@ function SortablePhoto({ photo, onSetHero, onDelete, onToggleHeart, onEdit, onOp
                         Set Home Hero
                     </button>
                     <button
+                        onClick={(e) => { e.stopPropagation(); onSetHero('homeHeroMobile', photo.filename); }}
+                        className="text-xs bg-white/10 hover:bg-white/20 text-white py-1.5 px-3 rounded-lg border border-white/30 shadow-md hover:shadow-lg transition-all duration-300"
+                    >
+                        Set Home Hero (Mobile)
+                    </button>
+                    <button
                         onClick={(e) => { e.stopPropagation(); onSetHero('aboutHero', photo.filename); }}
                         className="text-xs bg-white/10 hover:bg-white/20 text-white py-1.5 px-3 rounded-lg border border-white/30 shadow-md hover:shadow-lg transition-all duration-300"
                     >
@@ -132,6 +138,12 @@ function SortablePhoto({ photo, onSetHero, onDelete, onToggleHeart, onEdit, onOp
                         className="text-xs bg-white/10 hover:bg-white/20 text-white py-1.5 px-3 rounded-lg border border-white/30 shadow-md hover:shadow-lg transition-all duration-300"
                     >
                         Set Footer Hero
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onSetHero('footerHeroImageMobile', photo.filename); }}
+                        className="text-xs bg-white/10 hover:bg-white/20 text-white py-1.5 px-3 rounded-lg border border-white/30 shadow-md hover:shadow-lg transition-all duration-300"
+                    >
+                        Set Footer Hero (Mobile)
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onSetHero('weddingLogo', photo.filename); }}
@@ -171,7 +183,7 @@ function SortablePhoto({ photo, onSetHero, onDelete, onToggleHeart, onEdit, onOp
 export default function AdminPhotos() {
     const [photos, setPhotos] = useState<Photo[]>([]);
     const [uploading, setUploading] = useState(false);
-    const [siteConfig, setSiteConfig] = useState({ homeHero: '', aboutHero: '', footerHeroImage: '', weddingLogo: '', venuePhoto: '' });
+    const [siteConfig, setSiteConfig] = useState({ homeHero: '', homeHeroMobile: '', aboutHero: '', footerHeroImage: '', footerHeroImageMobile: '', weddingLogo: '', venuePhoto: '' });
     const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
     const [editForm, setEditForm] = useState({ title: '', description: '' });
     const [photosSubtitle, setPhotosSubtitle] = useState('Moments from our journey together.');
@@ -387,7 +399,7 @@ export default function AdminPhotos() {
         }
     };
 
-    const setHero = async (type: 'homeHero' | 'aboutHero' | 'footerHeroImage' | 'weddingLogo' | 'venuePhoto', filename: string) => {
+    const setHero = async (type: 'homeHero' | 'homeHeroMobile' | 'aboutHero' | 'footerHeroImage' | 'footerHeroImageMobile' | 'weddingLogo' | 'venuePhoto', filename: string) => {
         try {
             const res = await fetch('/api/admin/site-config', {
                 method: 'POST',
@@ -396,8 +408,8 @@ export default function AdminPhotos() {
             });
             if (res.ok) {
                 setSiteConfig(prev => ({ ...prev, [type]: filename }));
-                const heroName = type === 'homeHero' ? 'Home' : type === 'aboutHero' ? 'About' : type === 'footerHeroImage' ? 'Footer' : type === 'weddingLogo' ? 'Wedding Logo' : 'Venue Photo';
-                alert(`Updated ${heroName}${type === 'homeHero' || type === 'aboutHero' || type === 'footerHeroImage' ? ' Hero Image' : ''}`);
+                const heroName = type === 'homeHero' ? 'Home' : type === 'homeHeroMobile' ? 'Home (Mobile)' : type === 'aboutHero' ? 'About' : type === 'footerHeroImage' ? 'Footer' : type === 'footerHeroImageMobile' ? 'Footer (Mobile)' : type === 'weddingLogo' ? 'Wedding Logo' : 'Venue Photo';
+                alert(`Updated ${heroName}${type === 'homeHero' || type === 'homeHeroMobile' || type === 'aboutHero' || type === 'footerHeroImage' || type === 'footerHeroImageMobile' ? ' Hero Image' : ''}`);
             }
         } catch (err) {
             console.error(err);
@@ -436,10 +448,12 @@ export default function AdminPhotos() {
         }
     };
 
-    const heroButtons: { type: 'homeHero' | 'aboutHero' | 'footerHeroImage' | 'weddingLogo' | 'venuePhoto'; label: string }[] = [
+    const heroButtons: { type: 'homeHero' | 'homeHeroMobile' | 'aboutHero' | 'footerHeroImage' | 'footerHeroImageMobile' | 'weddingLogo' | 'venuePhoto'; label: string }[] = [
         { type: 'homeHero', label: 'Home Hero' },
+        { type: 'homeHeroMobile', label: 'Home Hero (Mobile)' },
         { type: 'aboutHero', label: 'About Hero' },
         { type: 'footerHeroImage', label: 'Footer Hero' },
+        { type: 'footerHeroImageMobile', label: 'Footer Hero (Mobile)' },
         { type: 'weddingLogo', label: 'Wedding Logo' },
         { type: 'venuePhoto', label: 'Venue Photo' },
     ];
@@ -542,6 +556,14 @@ export default function AdminPhotos() {
                         ) : <div className="h-20 w-32 bg-gray-200 mt-1 flex items-center justify-center text-xs rounded-lg">None</div>}
                     </div>
                     <div>
+                        <span className="text-xs font-bold text-gray-500 uppercase">Home (Mobile)</span>
+                        {siteConfig.homeHeroMobile ? (
+                            <div className="h-20 w-32 bg-gray-200 mt-1 relative rounded-lg overflow-hidden shadow-md">
+                                <img src={`/api/photos/${siteConfig.homeHeroMobile}?w=320`} alt="Home hero mobile" className="h-full w-full object-cover" />
+                            </div>
+                        ) : <div className="h-20 w-32 bg-gray-200 mt-1 flex items-center justify-center text-xs rounded-lg">None</div>}
+                    </div>
+                    <div>
                         <span className="text-xs font-bold text-gray-500 uppercase">About Page</span>
                         {siteConfig.aboutHero ? (
                             <div className="h-20 w-32 bg-gray-200 mt-1 relative rounded-lg overflow-hidden shadow-md">
@@ -554,6 +576,14 @@ export default function AdminPhotos() {
                         {siteConfig.footerHeroImage ? (
                             <div className="h-20 w-32 bg-gray-200 mt-1 relative rounded-lg overflow-hidden shadow-md">
                                 <img src={`/api/photos/${siteConfig.footerHeroImage}?w=320`} alt="Footer hero" className="h-full w-full object-cover" />
+                            </div>
+                        ) : <div className="h-20 w-32 bg-gray-200 mt-1 flex items-center justify-center text-xs rounded-lg">None</div>}
+                    </div>
+                    <div>
+                        <span className="text-xs font-bold text-gray-500 uppercase">Footer (Mobile)</span>
+                        {siteConfig.footerHeroImageMobile ? (
+                            <div className="h-20 w-32 bg-gray-200 mt-1 relative rounded-lg overflow-hidden shadow-md">
+                                <img src={`/api/photos/${siteConfig.footerHeroImageMobile}?w=320`} alt="Footer hero mobile" className="h-full w-full object-cover" />
                             </div>
                         ) : <div className="h-20 w-32 bg-gray-200 mt-1 flex items-center justify-center text-xs rounded-lg">None</div>}
                     </div>

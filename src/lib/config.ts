@@ -94,6 +94,8 @@ export interface SiteConfig {
     basicModeShowVenue?: boolean;
     // Footer/Hero Images
     footerHeroImage?: string;
+    footerHeroImageMobile?: string;
+    homeHeroMobile?: string;
     // Logo Mode
     logoMode?: boolean;
     weddingLogo?: string;

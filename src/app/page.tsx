@@ -63,6 +63,7 @@ export default async function Home() {
       <HeroCollapse
         images={heroImages}
         fallbackImage={config.homeHero}
+        fallbackImageMobile={config.homeHeroMobile}
         interval={slideshowInterval}
         bgColor={bgColor}
       >

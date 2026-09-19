@@ -18,6 +18,7 @@ interface AppShellProps {
   weddingDate?: string;
   weddingLocation?: string;
   footerHeroImage?: string;
+  footerHeroImageMobile?: string;
 }
 
 export default function AppShell({
@@ -31,6 +32,7 @@ export default function AppShell({
   weddingDate,
   weddingLocation,
   footerHeroImage,
+  footerHeroImageMobile,
 }: AppShellProps) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith('/admin');
@@ -105,6 +107,7 @@ export default function AppShell({
           weddingDate={weddingDate}
           weddingLocation={weddingLocation}
           footerHeroImage={footerHeroImage}
+          footerHeroImageMobile={footerHeroImageMobile}
         />
       </div>
     </>

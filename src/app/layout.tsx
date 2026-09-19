@@ -148,6 +148,7 @@ export default async function RootLayout({
             weddingDate={config.weddingDate}
             weddingLocation={config.weddingLocation}
             footerHeroImage={config.footerHeroImage}
+            footerHeroImageMobile={config.footerHeroImageMobile}
           >
             {children}
           </AppShell>
