@@ -30,6 +30,13 @@ function parseToast(value: unknown): CeremonyToast {
     return value === 'alcohol' || value === 'non_alcohol' ? value : null;
 }
 
+/**
+ * The welcome drink at the dinner — same shape as the ceremony toast above,
+ * but it has no attendance question of its own: it means something for
+ * whoever is already marked attending the party.
+ */
+type WelcomeDrink = 'alcohol' | 'non_alcohol' | null;
+
 interface RsvpInput {
     guestName: string;
     email: string;
@@ -43,6 +50,7 @@ interface RsvpInput {
         attending: boolean | null;
         attendingCeremony: boolean | null;
         ceremonyToast: CeremonyToast;
+        welcomeDrink: WelcomeDrink;
     }[] | null;
     // The primary guest's own answers — party members carry theirs in
     // `resolvedMembers` instead, alongside their party attendance. `attending`
@@ -51,6 +59,7 @@ interface RsvpInput {
     primaryAttending: boolean;
     attendingCeremony: boolean | null;
     ceremonyToast: CeremonyToast;
+    welcomeDrink: WelcomeDrink;
 }
 
 /**
@@ -85,7 +94,7 @@ function parseInput(body: unknown): RsvpInput | string {
     const resolvedMembers = Array.isArray(b.resolvedMembers) && b.resolvedMembers.length
         ? b.resolvedMembers.slice(0, 50).map((m) => {
             const obj = m && typeof m === 'object'
-                ? (m as { name?: unknown; attending?: unknown; attendingCeremony?: unknown; ceremonyToast?: unknown })
+                ? (m as { name?: unknown; attending?: unknown; attendingCeremony?: unknown; ceremonyToast?: unknown; welcomeDrink?: unknown })
                 : {};
             return {
                 name: typeof obj.name === 'string' ? obj.name.slice(0, 255) : null,
@@ -95,6 +104,8 @@ function parseInput(body: unknown): RsvpInput | string {
                 // The city hall ceremony is a separate question from the party above.
                 attendingCeremony: typeof obj.attendingCeremony === 'boolean' ? obj.attendingCeremony : null,
                 ceremonyToast: parseToast(obj.ceremonyToast),
+                // The welcome drink at the dinner — answered alongside the party question.
+                welcomeDrink: parseToast(obj.welcomeDrink),
             };
         })
         : null;
@@ -106,6 +117,7 @@ function parseInput(body: unknown): RsvpInput | string {
         primaryAttending: typeof b.primaryAttending === 'boolean' ? b.primaryAttending : b.attending,
         attendingCeremony: typeof b.attendingCeremony === 'boolean' ? b.attendingCeremony : null,
         ceremonyToast: parseToast(b.ceremonyToast),
+        welcomeDrink: parseToast(b.welcomeDrink),
     };
 }
 
@@ -157,18 +169,18 @@ async function saveRsvp(input: RsvpInput): Promise<{ id: number; isUpdate: boole
                 `UPDATE rsvps
                     SET email = $1, phone = $2, attending = $3, number_of_guests = $4,
                         dietary_restrictions = $5, message = $6, attending_ceremony = $7,
-                        ceremony_toast = $8, updated_at = NOW()
-                  WHERE id = $9`,
+                        ceremony_toast = $8, welcome_drink = $9, updated_at = NOW()
+                  WHERE id = $10`,
                 [input.email, input.phone, input.attending, count, input.dietaryJson, input.message,
-                 input.attendingCeremony, input.ceremonyToast, id],
+                 input.attendingCeremony, input.ceremonyToast, input.welcomeDrink, id],
             );
         } else {
             const inserted = await client.query(
                 `INSERT INTO rsvps (guest_name, email, phone, attending, number_of_guests, dietary_restrictions,
-                                     message, attending_ceremony, ceremony_toast)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+                                     message, attending_ceremony, ceremony_toast, welcome_drink)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
                 [guest.guest_name, input.email, input.phone, input.attending, count, input.dietaryJson,
-                 input.message, input.attendingCeremony, input.ceremonyToast],
+                 input.message, input.attendingCeremony, input.ceremonyToast, input.welcomeDrink],
             );
             id = inserted.rows[0].id;
         }

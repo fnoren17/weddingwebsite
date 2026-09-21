@@ -4,11 +4,16 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { DEFAULT_ROOM_BLOCK_MESSAGE } from '@/lib/roomBlock';
 
+// The welcome drink at the dinner — no attendance question of its own, it
+// means something whenever the person it belongs to is attending the party.
+type WelcomeDrink = 'alcohol' | 'non_alcohol' | null;
+
 interface PartyMember {
     name: string | null;
     // Whether this person is coming. Recorded per person by the RSVP form —
     // a party of three where one declines seats two, not three.
     attending?: boolean | null;
+    welcomeDrink?: WelcomeDrink;
 }
 
 interface DietaryEntry {
@@ -37,6 +42,7 @@ interface ExistingRsvp {
     phone?: string | null;
     dietaryRestrictions?: DietaryEntry[] | null;
     message?: string | null;
+    welcomeDrink?: WelcomeDrink;
 }
 
 interface RsvpPageConfig {
@@ -65,6 +71,9 @@ interface MemberCard {
     nut_allergy: boolean;
     other: boolean;
     other_text: string;
+    // The welcome drink at the dinner — independent of dietary restrictions, but
+    // only asked while the card is marked attending.
+    welcomeDrink: WelcomeDrink;
 }
 
 function buildCards(
@@ -75,6 +84,9 @@ function buildCards(
     // The household's saved party answer, used only to recover the primary guest's
     // own card when re-opening an RSVP (party members carry theirs on themselves).
     primaryAttending: boolean,
+    // The primary guest's own saved welcome-drink choice — party members carry
+    // theirs on themselves, same as their party attendance.
+    primaryWelcomeDrink: WelcomeDrink,
 ): MemberCard[] {
     const totalSlots = 1 + partyMembers.length;
     return Array.from({ length: totalSlots }, (_, i) => {
@@ -109,6 +121,7 @@ function buildCards(
             nut_allergy: existing?.nut_allergy ?? false,
             other: existing?.other ?? false,
             other_text: existing?.other_text ?? '',
+            welcomeDrink: isFirst ? (primaryWelcomeDrink ?? null) : (slot?.welcomeDrink ?? null),
         };
     });
 }
@@ -193,7 +206,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                     ? data.existingRsvp.dietaryRestrictions
                     : [];
 
-                setCards(buildCards(data.guest.name, data.guest.party_members || [], existingDietary, !!data.existingRsvp, !!data.existingRsvp?.attending));
+                setCards(buildCards(data.guest.name, data.guest.party_members || [], existingDietary, !!data.existingRsvp, !!data.existingRsvp?.attending, data.existingRsvp?.welcomeDrink ?? null));
 
                 setFormData({
                     guestName: data.guest.name,
@@ -248,6 +261,11 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                 setStatus('error');
                 return;
             }
+            if (cards[i].attendance === 'yes' && !cards[i].welcomeDrink) {
+                setErrorMessage(t('errorWelcomeDrinkChoice', { who: cards[i].name || t('guestFallback', { n: i + 1 }) }));
+                setStatus('error');
+                return;
+            }
         }
 
         setStatus('submitting');
@@ -264,6 +282,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
         const resolvedMembers = cards.slice(1).map(c => ({
             name: c.name || null,
             attending: c.attendance === 'yes',
+            welcomeDrink: c.attendance === 'yes' ? c.welcomeDrink : null,
         }));
         const primaryCard = cards[0];
         const dietaryRestrictions = attendingCards.map(c => ({
@@ -292,6 +311,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                     // The primary guest's own party answer: `resolvedMembers` starts at
                     // the second card, and `attending` above is the household's.
                     primaryAttending: primaryCard.attendance === 'yes',
+                    welcomeDrink: primaryCard.attendance === 'yes' ? primaryCard.welcomeDrink : null,
                 }),
             });
 
@@ -606,6 +626,35 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
                                                 className="mt-2 appearance-none block w-full px-3 py-2 border border-gray-300 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-accent focus:border-accent"
                                             />
                                         )}
+                                    </div>
+                                )}
+
+                                {/* Welcome drink — only when attending, same as dietary above */}
+                                {card.attendance === 'yes' && (
+                                    <div className="mt-3 pt-3 border-t border-gray-100">
+                                        <p className="text-xs text-gray-500 mb-2">{t('welcomeDrinkLabel')}</p>
+                                        <div className="flex gap-4">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name={`welcome-drink-${i}`}
+                                                    checked={card.welcomeDrink === 'alcohol'}
+                                                    onChange={() => updateCard(i, { welcomeDrink: 'alcohol' })}
+                                                    className="h-4 w-4 border-gray-300 text-accent focus:ring-accent"
+                                                />
+                                                <span className="text-sm text-gray-700">{t('welcomeDrinkAlcohol')}</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="radio"
+                                                    name={`welcome-drink-${i}`}
+                                                    checked={card.welcomeDrink === 'non_alcohol'}
+                                                    onChange={() => updateCard(i, { welcomeDrink: 'non_alcohol' })}
+                                                    className="h-4 w-4 border-gray-300 text-accent focus:ring-accent"
+                                                />
+                                                <span className="text-sm text-gray-700">{t('welcomeDrinkNonAlcohol')}</span>
+                                            </label>
+                                        </div>
                                     </div>
                                 )}
                             </div>

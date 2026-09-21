@@ -61,6 +61,11 @@ ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 -- anything when attending_ceremony is true.
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS attending_ceremony BOOLEAN;
 ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS ceremony_toast VARCHAR(20);
+-- The welcome drink at the dinner ('alcohol' / 'non_alcohol'), same shape as
+-- ceremony_toast above but with no attendance flag of its own: it means
+-- something for anyone already marked attending the party (`attending` here,
+-- `party_members[].attending` for the rest of the household).
+ALTER TABLE rsvps ADD COLUMN IF NOT EXISTS welcome_drink VARCHAR(20);
 -- Per-page "hidden from the nav" flag, added with the WIP controls. Created at
 -- runtime by /api/wip-status too; both must stay in step.
 ALTER TABLE wip_toggles ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;

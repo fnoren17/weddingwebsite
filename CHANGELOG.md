@@ -11,7 +11,10 @@ All notable changes to this project are documented here, newest at the top.
 > renders those three as coloured badges. Bump the patch on every deploy, the minor when
 > asked. Entries predating this convention carry a date but no time.
 
-## v0.9.91 — [Unreleased] kinder guest-name matching, "Middagen" and a song request (`main`, 2026-09-21 17:05)
+## v0.9.91 — [Unreleased] kinder guest-name matching, "Middagen" and a song request (`main`, 2026-09-21 19:20)
+
+### Added
+- The OSA now asks each attending person whether they want their welcome drink with or without alcohol (`welcomeDrinkAlcohol`/`welcomeDrinkNonAlcohol`), required alongside the dietary questions on every attending party card. Stored the same way as the City Hall toast choice — `rsvps.welcome_drink` for the primary guest, `party_members[].welcomeDrink` for the rest — but tied to the dinner's own attendance instead of a separate ceremony question, since it applies to whoever is already coming to the party. Shown in the admin RSVP table as a new "Welcome Drink" column.
 
 ### Changed
 - The OSA's party section is now titled "Middagen" instead of "Festen", matching intro text included.

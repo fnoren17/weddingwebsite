@@ -39,6 +39,9 @@ interface RSVP {
     // anything when attending_ceremony is true.
     attending_ceremony?: boolean | null;
     ceremony_toast?: 'alcohol' | 'non_alcohol' | null;
+    // The welcome drink at the dinner — no attendance flag of its own, it
+    // means something whenever the primary guest is attending the party.
+    welcome_drink?: 'alcohol' | 'non_alcohol' | null;
 }
 
 interface PartyMember {
@@ -48,6 +51,7 @@ interface PartyMember {
     attending?: boolean | null;
     attendingCeremony?: boolean | null;
     ceremonyToast?: 'alcohol' | 'non_alcohol' | null;
+    welcomeDrink?: 'alcohol' | 'non_alcohol' | null;
 }
 
 interface Guest {
@@ -1194,6 +1198,7 @@ export default function RSVPDashboard() {
                                         {rsvpHeader('name', 'Name')}
                                         {rsvpHeader('status', 'Status')}
                                         {rsvpHeader('ceremony', 'City Hall')}
+                                        {rsvpHeader('welcome_drink', 'Welcome Drink')}
                                         {rsvpHeader('guests', 'Guests')}
                                         {/* Dietary hands roughly a third of its width to the
                                             message beside it: it holds a few short flags, and the
@@ -1256,6 +1261,20 @@ export default function RSVPDashboard() {
                                                 </span>
                                             );
                                         };
+                                        // The welcome drink has no attendance flag of its own — it means
+                                        // something whenever the person is attending the party.
+                                        const welcomeDrinkBadge = (
+                                            attending: boolean | null | undefined,
+                                            drink: 'alcohol' | 'non_alcohol' | null | undefined,
+                                        ) => {
+                                            if (!attending) return <span className="text-xs text-gray-300">—</span>;
+                                            if (!drink) return <span className="text-xs text-gray-300">—</span>;
+                                            return (
+                                                <span className={`px-2 inline-flex text-xs leading-5 font-medium rounded-full ${drink === 'alcohol' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                                    {drink === 'alcohol' ? 'Alcohol' : 'No alcohol'}
+                                                </span>
+                                            );
+                                        };
                                         return (
                                             <React.Fragment key={rsvp.id}>
                                                 {/* Primary guest row */}
@@ -1272,6 +1291,9 @@ export default function RSVPDashboard() {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         {ceremonyBadge(rsvp.attending_ceremony, rsvp.ceremony_toast)}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        {welcomeDrinkBadge(primaryAttending, rsvp.welcome_drink)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         {rsvp.attending ? rsvp.number_of_guests : '-'}
@@ -1314,6 +1336,9 @@ export default function RSVPDashboard() {
                                                             </td>
                                                             <td className="px-6 py-4 whitespace-nowrap">
                                                                 {ceremonyBadge(matchedMember?.attendingCeremony, matchedMember?.ceremonyToast)}
+                                                            </td>
+                                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                                {welcomeDrinkBadge(true, matchedMember?.welcomeDrink)}
                                                             </td>
                                                             <td className="px-6 py-4 text-sm text-gray-300">—</td>
                                                             <td className="px-6 py-4 text-sm text-gray-500">{dietaryFlags(member)}</td>

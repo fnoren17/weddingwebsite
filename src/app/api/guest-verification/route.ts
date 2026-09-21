@@ -89,6 +89,7 @@ export async function POST(request: Request) {
           message: rsvp.message,
           attendingCeremony: rsvp.attending_ceremony,
           ceremonyToast: rsvp.ceremony_toast,
+          welcomeDrink: rsvp.welcome_drink,
         };
       }
 
