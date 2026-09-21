@@ -209,6 +209,9 @@ async function sendEmails(input: RsvpInput) {
         ? `${config.brideName} & ${config.groomName}`
         : 'The Couple';
     const port = parseInt(process.env.SMTP_PORT || '587', 10);
+    // Some SMTP providers (e.g. Resend) authenticate with a fixed username
+    // that isn't a real mailbox, so the From address can't just be SMTP_USER.
+    const fromAddress = process.env.SMTP_FROM || process.env.SMTP_USER;
     try {
         const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST,
@@ -223,7 +226,7 @@ async function sendEmails(input: RsvpInput) {
         // already had one on file for them.
         if (input.email) {
             await transporter.sendMail({
-                from: `"${couple.replace(/"/g, '')}" <${process.env.SMTP_USER}>`,
+                from: `"${couple.replace(/"/g, '')}" <${fromAddress}>`,
                 to: input.email,
                 subject: 'We received your RSVP!',
                 text: `Hi ${input.guestName},\n\nThank you so much for RSVPing to our wedding. We have confirmed your response: ${status}.\n\nWe can't wait to celebrate with you!\n\nBest,\n${couple}`,
@@ -233,7 +236,7 @@ async function sendEmails(input: RsvpInput) {
 
         if (process.env.NOTIFICATION_EMAIL) {
             await transporter.sendMail({
-                from: `"Wedding Bot" <${process.env.SMTP_USER}>`,
+                from: `"Wedding Bot" <${fromAddress}>`,
                 to: process.env.NOTIFICATION_EMAIL,
                 subject: `New RSVP from ${input.guestName}`,
                 text: `Name: ${input.guestName}\nAttending: ${input.attending ? 'Yes' : 'No'}\nGuests: ${input.attending ? input.guestCount : 0}\nEmail: ${input.email || 'not provided'}\nPhone: ${input.phone || 'not provided'}\nMessage: ${input.message ?? ''}`,
