@@ -235,11 +235,24 @@ async function sendEmails(input: RsvpInput) {
         }
 
         if (process.env.NOTIFICATION_EMAIL) {
+            const answer = (attending: boolean | null) =>
+                attending === null ? 'No answer' : attending ? 'Attending' : 'Not attending';
+            // `attending`/`guestCount` are the household's answer; each party
+            // member's own answer lives separately (primaryAttending for the
+            // named guest, resolvedMembers for the rest) — list them so the
+            // notification shows who specifically is and isn't coming.
+            const responses = [
+                `- ${input.guestName}: ${answer(input.primaryAttending)}`,
+                ...(input.resolvedMembers ?? []).map(
+                    (m) => `- ${m.name || 'Unnamed guest'}: ${answer(m.attending)}`,
+                ),
+            ].join('\n');
+
             await transporter.sendMail({
                 from: `"Wedding Bot" <${fromAddress}>`,
                 to: process.env.NOTIFICATION_EMAIL,
                 subject: `New RSVP from ${input.guestName}`,
-                text: `Name: ${input.guestName}\nAttending: ${input.attending ? 'Yes' : 'No'}\nGuests: ${input.attending ? input.guestCount : 0}\nEmail: ${input.email || 'not provided'}\nPhone: ${input.phone || 'not provided'}\nMessage: ${input.message ?? ''}`,
+                text: `Household: ${input.guestName}\nOverall: ${input.attending ? 'Attending' : 'Not attending'} (${input.attending ? input.guestCount : 0} guests)\n\nResponses:\n${responses}\n\nMessage: ${input.message ?? ''}`,
             });
         }
     } catch (emailError) {
