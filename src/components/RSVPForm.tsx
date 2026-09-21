@@ -622,7 +622,7 @@ export default function RSVPForm({ coupleNames = '', roomBlockHotel = '', roomBl
             {/* Message */}
             <div>
                 <label htmlFor="message" className="block text-sm font-medium text-gray-700 ml-1">
-                    {t('messageLabel', { bride: config?.brideName || 'Bride', groom: config?.groomName || 'Groom' })}
+                    {t('messageLabel')}
                 </label>
                 <textarea
                     id="message" name="message" rows={3}

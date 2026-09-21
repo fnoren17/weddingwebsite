@@ -1,3 +1,7 @@
+-- Lets guest-name lookups (RSVP verification) treat "Norén" and "Noren" as a
+-- match instead of requiring the exact accent the admin typed into the guest list.
+CREATE EXTENSION IF NOT EXISTS unaccent;
+
 -- Create RSVPs table
 CREATE TABLE IF NOT EXISTS rsvps (
   id SERIAL PRIMARY KEY,

@@ -47,6 +47,11 @@ export default async function Home() {
   const heroImages = slideshowEnabled ? slideshowImages : [];
   // A question with no text yet is a draft, not content.
   const faqs = (config.faqs || []).filter((f) => f.question?.trim() || f.answer?.trim());
+  // The time is optional free text (admin settings) — skip the space rather
+  // than leaving a trailing gap when it hasn't been set.
+  const heroDateText = config.weddingTime
+    ? `${config.weddingDate} ${config.weddingTime}`
+    : config.weddingDate;
 
   // The middleware gates direct navigation to `/about`, but the section also
   // renders inline here as part of `/` — hiding it has to happen here too, or
@@ -94,8 +99,8 @@ export default async function Home() {
           style={{ animation: 'page-enter 700ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 600ms both' }}
         >
           {isBasicMode && !showVenue
-            ? config.weddingDate
-            : <>{config.weddingDate}<br className="md:hidden" /><span className="hidden md:inline"> • </span>{config.weddingLocation}</>
+            ? heroDateText
+            : <>{heroDateText}<br className="md:hidden" /><span className="hidden md:inline"> • </span>{config.weddingLocation}</>
           }
         </p>
         {!isBasicMode && (

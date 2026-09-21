@@ -11,6 +11,15 @@ All notable changes to this project are documented here, newest at the top.
 > renders those three as coloured badges. Bump the patch on every deploy, the minor when
 > asked. Entries predating this convention carry a date but no time.
 
+## v0.9.91 — [Unreleased] kinder guest-name matching, "Middagen" and a song request (`main`, 2026-09-21 17:05)
+
+### Changed
+- The OSA's party section is now titled "Middagen" instead of "Festen", matching intro text included.
+- The OSA's free-text message field now asks guests to request their favorite song instead of leaving a message for the couple.
+- Guest-list lookup on the OSA is now accent-insensitive — "Noren" and "Norén" match the same guest list entry — via Postgres's `unaccent` extension (`database/init.sql` now enables it) plus a matching JS-side fold for the primary/party-member/plus-one comparisons that follow the SQL match.
+- The "you're not on the guest list" error, and the other guest-verification error messages, are now translated through the site's locale (`next-intl`) instead of being hard-coded in English — they were always shown untranslated on a Swedish-locale site.
+- The home page hero now shows the wedding time next to the date (`config.weddingTime`, already set in admin settings but previously only used by the countdown and the ceremony text, never shown in the header itself).
+
 ## v0.9.90 — [Unreleased] the party is answered per person too (`main`, 2026-09-17 21:41)
 
 The RSVP asked the party as one household question — a "Will you be attending the party?" dropdown that answered for everyone at once — while the City Hall ceremony below it was already answered per person. So a party of three where one person could not make the dinner had no way to say so, and the guest named on the invitation could never decline while the rest of their household came.
